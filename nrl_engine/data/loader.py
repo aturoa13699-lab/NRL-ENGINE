@@ -155,7 +155,10 @@ class DataLoader:
         
         # Prepare data
         df = df.copy()
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
+        # Robust date handling - check if already datetime
+        if not pd.api.types.is_datetime64_any_dtype(df["date"]):
+            df["date"] = pd.to_datetime(df["date"], errors="coerce")
         df = df.dropna(subset=["match_id", "date"]).sort_values("date").reset_index(drop=True)
         
         # Add derived columns

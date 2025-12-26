@@ -13,7 +13,8 @@ def main():
     # Test 1: Imports
     print("\n[1/5] Testing imports...")
     try:
-        from nrl_engine import Config, DataLoader, FeatureEngineer, EvaluationHarness
+        from nrl_engine import Config, EvaluationHarness
+        from nrl_engine import DataLoader as _DataLoader, FeatureEngineer as _FeatureEngineer  # noqa: F401
         from nrl_engine.evaluation.odds_gate import enforce_odds_orientation
         from nrl_engine.data.sample_data import generate_sample_data, validate_sample_data
         print("  ✓ All imports successful")

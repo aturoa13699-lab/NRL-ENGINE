@@ -102,7 +102,7 @@ def test_compute_calibration():
     """Test calibration curve computation."""
     # Well-calibrated predictions
     np.random.seed(42)
-    n = 1000
+    _n = 1000  # noqa: F841 - placeholder for larger tests
     
     # Generate predictions in bins
     probs = np.concatenate([

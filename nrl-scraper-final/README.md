@@ -103,6 +103,18 @@ GitHub Actions runs:
 - **Unit Tests**: pytest (no network)
 - **Integration Tests**: RLP 2024 validation (main branch only)
 - **Weekly Healthcheck**: Tuesday ~09:30 AEST
+- **Export Data**: Refreshes `data` branch with latest Postgres exports
+
+### Data for Colab
+
+This repo publishes fresh training data to the `data` branch via **export-data** workflow.
+
+Use in Colab:
+```python
+!git clone --depth 1 -b data https://github.com/aturoa13699-lab/NRL-ENGINE.git datarepo
+import pandas as pd
+df = pd.read_parquet("datarepo/data/exports/matches.parquet")
+```
 
 ## Database Setup
 
@@ -129,6 +141,20 @@ ruff format .
 # Test
 pytest -v -m "not integration"  # Unit tests
 pytest -v                        # All tests
+```
+
+### Deployment debug
+
+At startup the app logs:
+- `version_commit`, `version_built`
+- `railway_deployment_id` (if Railway exposes it)
+
+To force a clean rebuild:
+```bash
+bash scripts/mark_deploy.sh
+git add nrlscraper/__version__.py .deploy_marker
+git commit -m "chore: force redeploy"
+git push
 ```
 
 ## Operations

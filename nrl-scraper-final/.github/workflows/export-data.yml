@@ -1,0 +1,67 @@
+name: export-data
+on:
+  schedule: [{ cron: "15 22 * * 2" }]   # Tue 09:15 AEST
+  workflow_dispatch:
+  repository_dispatch:
+    types: [railway-scrape-finished]
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.RAILWAY_DB_URL_RO }}
+      DATA_BRANCH: data
+      OUT_DIR: data/exports
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+
+      - name: Install deps
+        run: |
+          pipx install uv
+          uv pip install --system "pandas>=2" "pyarrow" "fastparquet" "psycopg[binary]>=3.2"
+
+      - name: Export matches
+        run: |
+          python - <<'PY'
+          import os, pandas as pd, psycopg
+          url = os.environ["DATABASE_URL"]
+          out = os.environ["OUT_DIR"]
+          os.makedirs(out, exist_ok=True)
+          with psycopg.connect(url) as con:
+              df = pd.read_sql("select * from matches order by date;", con)
+          assert len(df) > 0, "no rows exported from Postgres"
+          df.to_parquet(f"{out}/matches.parquet", index=False)
+          df.to_csv(f"{out}/matches.csv", index=False)
+          print("exported rows:", len(df))
+          PY
+
+      - name: Commit to data branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # fetch remote data branch if it exists
+          git fetch origin $DATA_BRANCH || true
+          # base local branch on origin/data when present; else create new
+          if git rev-parse --verify origin/$DATA_BRANCH >/dev/null 2>&1; then
+            git checkout -B $DATA_BRANCH origin/$DATA_BRANCH
+          else
+            git checkout -B $DATA_BRANCH
+          fi
+          git add $OUT_DIR/*
+          git commit -m "data: refresh exports" || echo "nothing to commit"
+          # allow overwriting generated history on data branch only
+          git push --force-with-lease origin $DATA_BRANCH
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: data-exports
+          path: data/exports/*
+          if-no-files-found: error
+          retention-days: 14

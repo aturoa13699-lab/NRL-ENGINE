@@ -54,7 +54,7 @@ def make_match_id(
     """
     Generate stable, deterministic match_id.
 
-    Uses SHA-1 hash of canonical fields for collision resistance.
+    Uses BLAKE2s hash of canonical fields for collision resistance.
     """
     key = '|'.join([
         str(season),
@@ -64,7 +64,7 @@ def make_match_id(
         away.strip().lower(),
         (venue or '').strip().lower(),
     ])
-    return hashlib.sha1(key.encode('utf-8')).hexdigest()
+    return hashlib.blake2s(key.encode('utf-8'), digest_size=16).hexdigest()
 
 
 class NRLScraper:
@@ -136,7 +136,10 @@ class NRLScraper:
             List of validated match dicts
         """
         if year < settings.season_start or year > settings.season_end:
-            raise ValueError(f'Season {year} out of range ({settings.season_start}-{settings.season_end})')
+            raise ValueError(
+                f'Season {year} out of range '
+                f'({settings.season_start}-{settings.season_end})'
+            )
 
         logger.info(f'Scraping season {year}...')
         all_rows: list[dict] = []
@@ -156,7 +159,7 @@ class NRLScraper:
                     if empty_streak >= 3 and round_num > 10:
                         logger.debug(f'Stopping at round {round_num} after empty streak')
                         break
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning(f'Failed to scrape round {round_num}: {e}')
 
         # Scrape finals
@@ -172,7 +175,7 @@ class NRLScraper:
         url = self._round_url(year, round_num)
         try:
             response = self._get(url)
-        except Exception:
+        except Exception:  # noqa: BLE001
             return []
 
         return self._parse_results_page(response.text, year, url)
@@ -195,7 +198,7 @@ class NRLScraper:
                 response = self._get(url)
                 rows = self._parse_results_page(response.text, year, url)
                 all_finals.extend(rows)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.debug(f'Finals {finals_type} not found or failed: {e}')
 
         return all_finals
@@ -337,7 +340,7 @@ class NRLScraper:
 
             return validated.model_dump()
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.debug(f'Parse error: {e}')
             return None
 
@@ -356,7 +359,7 @@ class NRLScraper:
                     continue
 
             return date(year, 1, 1)
-        except Exception:
+        except Exception:  # noqa: BLE001
             return date(year, 1, 1)
 
     def scrape_historical(
@@ -383,7 +386,7 @@ class NRLScraper:
                 rows = self.scrape_season(year, include_finals=include_finals)
                 all_rows.extend(rows)
                 log_event(event='season_complete', season=year, matches=len(rows))
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f'Failed to scrape {year}: {e}')
                 log_event(event='season_failed', season=year, error=str(e))
 

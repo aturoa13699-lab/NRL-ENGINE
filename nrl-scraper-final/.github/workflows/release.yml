@@ -1,0 +1,30 @@
+name: release
+on: { push: { tags: [ "v*.*.*" ] } }
+permissions: { contents: write, pull-requests: read }
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Draft Release Notes
+        id: release_notes
+        uses: release-drafter/release-drafter@v5
+        with: { config-name: release-drafter.yml, version: ${{ github.ref_name }} }
+        env: { GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} }
+      - name: Build artifact bundle
+        run: |
+          mkdir -p dist
+          NAME="nrl-scraper-${GITHUB_REF_NAME}"
+          TAR="dist/${NAME}.tar.gz"
+          rm -rf dist/*.tar.gz
+          tar -czf "$TAR" --exclude .git --exclude .venv --exclude __pycache__ --exclude dist -C . .
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "NRL Scraper ${{ github.ref_name }}"
+          body: ${{ steps.release_notes.outputs.body }}
+          files: |
+            dist/nrl-scraper-${{ github.ref_name }}.tar.gz
+            scripts/bootstrap_db.sql

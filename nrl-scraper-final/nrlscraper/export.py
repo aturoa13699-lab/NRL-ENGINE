@@ -74,3 +74,26 @@ def to_parquet_multi(rows: list[dict], table: str) -> list[str]:
 def load_parquet(path: str) -> pd.DataFrame:
     """Load Parquet file or directory."""
     return pd.read_parquet(path)
+
+
+def export_to_parquet(rows: list[dict], prefix: str = "nrl_matches") -> str:
+    """
+    Convenience wrapper for Railway main.py.
+
+    Auto-detects season from data and exports to parquet.
+
+    Args:
+        rows: List of match dicts
+        prefix: Output file prefix
+
+    Returns:
+        Path to output file
+    """
+    if not rows:
+        return ""
+
+    # Detect season from first row
+    first = rows[0]
+    season = first.get('season') or pd.to_datetime(first.get('date')).year
+
+    return to_parquet(rows, prefix, season)

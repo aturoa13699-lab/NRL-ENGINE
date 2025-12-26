@@ -1,0 +1,33 @@
+- name: feat
+  color: 1abc9c
+  description: New feature
+- name: fix
+  color: d73a4a
+  description: Bug fix
+- name: chore
+  color: cfd3d7
+  description: Maintenance/update
+- name: docs
+  color: 0366d6
+  description: Documentation
+- name: refactor
+  color: a2eeef
+  description: Refactor code
+- name: perf
+  color: ffcc00
+  description: Performance
+- name: test
+  color: 6f42c1
+  description: Tests
+- name: ci
+  color: 0e8a16
+  description: CI/CD changes
+- name: ops
+  color: 09546b
+  description: Ops/infra
+- name: scraper
+  color: 5319e7
+  description: Scraper core
+- name: tooling
+  color: 2b7fff
+  description: Tooling surrounding the scraper

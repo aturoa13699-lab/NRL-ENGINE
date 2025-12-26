@@ -1,26 +1,16 @@
 name: ci
-
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  push: { branches: [ main ] }
+  pull_request: { branches: [ main ] }
   workflow_dispatch:
     inputs:
-      season:
-        description: "Season to validate"
-        required: false
-        default: "2024"
+      season: { description: "Season (default 2024)", required: false, default: "2024" }
+      start:  { description: "Backfill start", required: false, default: "1998" }
+      end:    { description: "Backfill end", required: false, default: "2025" }
   schedule:
-    # Weekly scrape/check: Tue ~09:30 Australia/Sydney
-    - cron: "30 22 * * MON"  # GitHub cron is UTC
-
-permissions:
-  contents: read
-
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+    - cron: "30 22 * * MON"  # Tue ~09:30 Australia/Sydney
+permissions: { contents: read }
+concurrency: { group: ci-${{ github.ref }}, cancel-in-progress: true }
 
 jobs:
   lint:
@@ -28,46 +18,49 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-          cache: "pip"
-      - name: Install dev dependencies
-        run: pip install -r requirements-dev.txt
-      - name: Ruff check
-        run: ruff check .
-      - name: Ruff format check
-        run: ruff format --check .
+        with: { python-version: "3.13", cache: "pip" }
+      - run: echo "::group::Install dev deps" && pip install -r requirements-dev.txt && echo "::endgroup::"
+      - run: echo "::group::Ruff lint" && ruff check . && echo "::endgroup::"
+      - run: echo "::group::Ruff format check" && ruff format --check && echo "::endgroup::"
 
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: "pip" }
+      - name: Cache mypy
+        uses: actions/cache@v4
         with:
-          python-version: "3.12"
-          cache: "pip"
-      - name: Install dependencies
-        run: pip install -r requirements-dev.txt
-      - name: Run unit tests (no network)
-        run: pytest -q --maxfail=3 -m "not integration" --cov=nrlscraper --cov-report=xml
-      - name: Upload coverage
+          path: .mypy_cache
+          key: mypy-${{ runner.os }}-${{ hashFiles('**/*.py') }}
+      - name: Cache pytest
+        uses: actions/cache@v4
+        with:
+          path: .pytest_cache
+          key: pytest-${{ runner.os }}-${{ hashFiles('**/*.py') }}
+      - run: echo "::group::Install dev deps" && pip install -r requirements-dev.txt && echo "::endgroup::"
+      - name: Unit tests
+        run: echo "::group::pytest" && pytest -q --maxfail=1 --disable-warnings -m "not integration" --cov=nrlscraper --cov-report=xml && echo "::endgroup::"
+      - name: Mypy (non-blocking)
+        run: echo "::group::mypy" && mypy nrlscraper || true && echo "::endgroup::"
+      - name: pip-audit (non-blocking)
+        run: echo "::group::pip-audit" && pip install pip-audit && pip-audit -r requirements.txt || true && echo "::endgroup::"
+      - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
-          files: coverage.xml
+          files: ./coverage.xml
           fail_ci_if_error: false
+          verbose: false
 
   integration:
     runs-on: ubuntu-latest
-    # Only run on main or manual trigger (hits live RLP site)
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: "pip"
-      - name: Install dependencies
-        run: pip install -r requirements-dev.txt
+        with: { python-version: "3.12", cache: "pip" }
+      - run: pip install -r requirements-dev.txt
       - name: Run integration tests (RLP 2024)
         run: pytest -q --maxfail=1 -m "integration" -v
         timeout-minutes: 15
@@ -78,16 +71,82 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-          cache: "pip"
-      - name: Install
-        run: pip install -r requirements.txt
-      - name: Quick single-match probe
-        run: python -m tools.scraper_check --season ${{ inputs.season || '2024' }} --limit 1
-      - name: 2024 aggregate assertions
-        env:
-          EXPECTED_TOTAL: "213"
-          EXPECTED_REGULAR: "204"
+        with: { python-version: "3.13", cache: "pip" }
+      - run: echo "::group::Install runtime deps" && pip install -r requirements.txt && echo "::endgroup::"
+      - name: Single-match probe
+        run: python -m tools.scraper_check --season ${{ inputs.season || 2024 }} --limit 1
+      - name: 2024 assertions
+        env: { EXPECTED_TOTAL: "213", EXPECTED_REGULAR: "204" }
+        run: python -m tools.validate_aggregate --season 2024 --expected-total $EXPECTED_TOTAL --expected-regular $EXPECTED_REGULAR
+      - name: Season summary (MD + JSON/CSV)
+        env: { SEASON: ${{ inputs.season || 2024 }} }
         run: |
-          python -m tools.validate_aggregate --season 2024 --expected-total $EXPECTED_TOTAL --expected-regular $EXPECTED_REGULAR
+          python - <<'PY'
+          import os, json, csv, pandas as pd
+          from nrlscraper import NRLScraper
+          season=int(os.getenv("SEASON","2024"))
+          df=pd.DataFrame(NRLScraper().scrape_season(season, include_finals=True))
+          is_finals=df["round"].str.contains("Final", case=False, na=False) if not df.empty else df.index==df.index
+          reg=df[~is_finals] if not df.empty else df; fin=df[is_finals] if not df.empty else df
+          first=str(df["date"].min()) if not df.empty else ""; last=str(df["date"].max()) if not df.empty else ""
+          teams=len(pd.unique(pd.concat([reg["home_team"], reg["away_team"]], ignore_index=True))) if not reg.empty else 0
+          summary={"season":season,"total":int(len(df)),"regular":int(len(reg)),"finals":int(len(fin)),"teams_regular":int(teams),"first_date":first,"last_date":last}
+          md=["## Season %s summary"%season,"","| Metric | Value |","|---|---:|"]
+          for k,v in [("Total matches",summary["total"]),("Regular-season",summary["regular"]),("Finals",summary["finals"]),("Teams (regular)",summary["teams_regular"]),("First date",summary["first_date"]),("Last date",summary["last_date"])]:
+            md.append(f"| {k} | {v} |")
+          out="\n".join(md)+"\n"; print(out); open(os.environ["GITHUB_STEP_SUMMARY"],"a").write(out)
+          json.dump(summary, open(f"season-{season}-summary.json","w"), indent=2)
+          with open(f"season-{season}-summary.csv","w",newline="") as f:
+            w=csv.writer(f); w.writerow(["metric","value"])
+            for k in ["total","regular","finals","teams_regular","first_date","last_date"]: w.writerow([k, summary[k]])
+          PY
+      - name: Upload summary artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: season-${{ inputs.season || 2024 }}-summary
+          retention-days: 14
+          path: |
+            season-${{ inputs.season || 2024 }}-summary.json
+            season-${{ inputs.season || 2024 }}-summary.csv
+
+  backfill_summary:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13", cache: "pip" }
+      - run: pip install -r requirements.txt
+      - name: Range summary (MD + JSON/CSV)
+        env: { START: ${{ inputs.start || 1998 }}, END: ${{ inputs.end || 2025 }} }
+        run: |
+          python - <<'PY'
+          import os, json, csv, pandas as pd
+          from nrlscraper import NRLScraper
+          start=int(os.getenv("START","1998")); end=int(os.getenv("END","2025"))
+          rows=[]
+          for y in range(start, end+1):
+            try:
+              df=pd.DataFrame(NRLScraper().scrape_season(y, include_finals=True))
+              is_finals=df["round"].str.contains("Final", case=False, na=False) if not df.empty else df.index==df.index
+              reg=df[~is_finals] if not df.empty else df; fin=df[is_finals] if not df.empty else df
+              first=str(df["date"].min()) if not df.empty else ""; last=str(df["date"].max()) if not df.empty else ""
+              rows.append({"season":y,"total":int(len(df)),"regular":int(len(reg)),"finals":int(len(fin)),"first_date":first,"last_date":last,"errors":0})
+            except Exception:
+              rows.append({"season":y,"total":0,"regular":0,"finals":0,"first_date":"","last_date":"","errors":1})
+          md=["## Backfill summary %s-%s"%(start,end),"","| Season | Matches | Regular | Finals | First date | Last date | Errors |","|---:|---:|---:|---:|---|---|---:|"]
+          for r in rows: md.append(f"| {r['season']} | {r['total']} | {r['regular']} | {r['finals']} | {r['first_date']} | {r['last_date']} | {r['errors']} |")
+          out="\n".join(md)+"\n"; print(out); open(os.environ["GITHUB_STEP_SUMMARY"],"a").write(out)
+          json.dump(rows, open(f"backfill-{start}-{end}.json","w"), indent=2)
+          with open(f"backfill-{start}-{end}.csv","w",newline="") as f:
+            w=csv.writer(f); w.writerow(["season","total","regular","finals","first_date","last_date","errors"])
+            [w.writerow([r['season'],r['total'],r['regular'],r['finals'],r['first_date'],r['last_date'],r['errors']]) for r in rows]
+          PY
+      - name: Upload backfill artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: backfill-${{ inputs.start || 1998 }}-${{ inputs.end || 2025 }}
+          retention-days: 14
+          path: |
+            backfill-${{ inputs.start || 1998 }}-${{ inputs.end || 2025 }}.json
+            backfill-${{ inputs.start || 1998 }}-${{ inputs.end || 2025 }}.csv

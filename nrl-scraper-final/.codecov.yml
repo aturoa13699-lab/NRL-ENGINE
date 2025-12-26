@@ -1,0 +1,10 @@
+codecov:
+  require_ci_to_pass: no
+coverage:
+  precision: 2
+  round: down
+  status:
+    project: true
+    patch: true
+ignore:
+  - "tests/*"

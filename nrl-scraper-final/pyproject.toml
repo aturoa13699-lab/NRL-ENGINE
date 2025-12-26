@@ -30,7 +30,7 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "N", "C4", "BLE", "A", "S"]
-ignore = ["S101"]  # Allow assert in tests
+ignore = ["S101", "E501"]  # Allow assert in tests; long lines OK for regex
 
 [tool.ruff.format]
 quote-style = "single"

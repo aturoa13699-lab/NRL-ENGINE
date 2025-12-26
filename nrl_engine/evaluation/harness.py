@@ -83,8 +83,9 @@ class EvaluationHarness:
         
         self.data = self.raw_data.copy()
         
-        # Ensure date is datetime
-        self.data["date"] = pd.to_datetime(self.data["date"], errors="coerce")
+        # Robust date handling - check if already datetime
+        if not pd.api.types.is_datetime64_any_dtype(self.data["date"]):
+            self.data["date"] = pd.to_datetime(self.data["date"], errors="coerce")
         self.data = self.data.dropna(subset=["match_id", "date"]).sort_values("date").reset_index(drop=True)
         
         # Add derived columns

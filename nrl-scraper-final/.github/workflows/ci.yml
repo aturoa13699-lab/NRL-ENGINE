@@ -1,0 +1,93 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      season:
+        description: "Season to validate"
+        required: false
+        default: "2024"
+  schedule:
+    # Weekly scrape/check: Tue ~09:30 Australia/Sydney
+    - cron: "30 22 * * MON"  # GitHub cron is UTC
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Ruff check
+        run: ruff check .
+      - name: Ruff format check
+        run: ruff format --check .
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Run unit tests (no network)
+        run: pytest -q --maxfail=3 -m "not integration" --cov=nrlscraper --cov-report=xml
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+          fail_ci_if_error: false
+
+  integration:
+    runs-on: ubuntu-latest
+    # Only run on main or manual trigger (hits live RLP site)
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Run integration tests (RLP 2024)
+        run: pytest -q --maxfail=1 -m "integration" -v
+        timeout-minutes: 15
+
+  healthcheck:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+      - name: Install
+        run: pip install -r requirements.txt
+      - name: Quick single-match probe
+        run: python -m tools.scraper_check --season ${{ inputs.season || '2024' }} --limit 1
+      - name: 2024 aggregate assertions
+        env:
+          EXPECTED_TOTAL: "213"
+          EXPECTED_REGULAR: "204"
+        run: |
+          python -m tools.validate_aggregate --season 2024 --expected-total $EXPECTED_TOTAL --expected-regular $EXPECTED_REGULAR

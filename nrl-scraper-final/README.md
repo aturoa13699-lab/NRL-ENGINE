@@ -103,6 +103,18 @@ GitHub Actions runs:
 - **Unit Tests**: pytest (no network)
 - **Integration Tests**: RLP 2024 validation (main branch only)
 - **Weekly Healthcheck**: Tuesday ~09:30 AEST
+- **Export Data**: Refreshes `data` branch with latest Postgres exports
+
+### Data for Colab
+
+This repo publishes fresh training data to the `data` branch via **export-data** workflow.
+
+Use in Colab:
+```python
+!git clone --depth 1 -b data https://github.com/aturoa13699-lab/NRL-ENGINE.git datarepo
+import pandas as pd
+df = pd.read_parquet("datarepo/data/exports/matches.parquet")
+```
 
 ## Database Setup
 

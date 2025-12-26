@@ -143,6 +143,20 @@ pytest -v -m "not integration"  # Unit tests
 pytest -v                        # All tests
 ```
 
+### Deployment debug
+
+At startup the app logs:
+- `version_commit`, `version_built`
+- `railway_deployment_id` (if Railway exposes it)
+
+To force a clean rebuild:
+```bash
+bash scripts/mark_deploy.sh
+git add nrlscraper/__version__.py .deploy_marker
+git commit -m "chore: force redeploy"
+git push
+```
+
 ## Operations
 
 See [docs/ops.md](docs/ops.md) for:

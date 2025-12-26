@@ -35,6 +35,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Log version and deployment info at boot
+try:
+    from nrlscraper.__version__ import VERSION as _VER
+except Exception:
+    _VER = {"commit": "unknown", "touched": "unknown"}
+
+deploy_id = os.getenv("RAILWAY_DEPLOYMENT_ID", "unknown")
+logger.info(
+    "boot: version_commit=%s version_built=%s railway_deployment_id=%s",
+    _VER.get("commit"),
+    _VER.get("touched"),
+    deploy_id,
+)
+
 
 def get_env_bool(key: str, default: bool = False) -> bool:
     """Get boolean from env var (1/true/yes = True)."""

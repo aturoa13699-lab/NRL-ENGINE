@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 # Log version and deployment info at boot
 try:
     from nrlscraper.__version__ import VERSION as _VER
-except Exception:
+except ImportError:
     _VER = {"commit": "unknown", "touched": "unknown"}
 
 deploy_id = os.getenv("RAILWAY_DEPLOYMENT_ID", "unknown")

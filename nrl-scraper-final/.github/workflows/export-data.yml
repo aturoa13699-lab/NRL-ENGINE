@@ -46,10 +46,18 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -B "$DATA_BRANCH"
+          # fetch remote data branch if it exists
+          git fetch origin $DATA_BRANCH || true
+          # base local branch on origin/data when present; else create new
+          if git rev-parse --verify origin/$DATA_BRANCH >/dev/null 2>&1; then
+            git checkout -B $DATA_BRANCH origin/$DATA_BRANCH
+          else
+            git checkout -B $DATA_BRANCH
+          fi
           git add $OUT_DIR/*
           git commit -m "data: refresh exports" || echo "nothing to commit"
-          git push -u origin "$DATA_BRANCH"
+          # allow overwriting generated history on data branch only
+          git push --force-with-lease origin $DATA_BRANCH
 
       - uses: actions/upload-artifact@v4
         with:

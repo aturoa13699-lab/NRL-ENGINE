@@ -48,20 +48,32 @@ class TestMatchId:
 
     def test_deterministic(self):
         """Test match_id is deterministic."""
-        id1 = make_match_id(2024, 'Round 1', '2024-03-02', 'Brisbane Broncos', 'Sydney Roosters', 'Suncorp Stadium')
-        id2 = make_match_id(2024, 'Round 1', '2024-03-02', 'Brisbane Broncos', 'Sydney Roosters', 'Suncorp Stadium')
+        id1 = make_match_id(
+            2024, 'Round 1', '2024-03-02',
+            'Brisbane Broncos', 'Sydney Roosters', 'Suncorp Stadium'
+        )
+        id2 = make_match_id(
+            2024, 'Round 1', '2024-03-02',
+            'Brisbane Broncos', 'Sydney Roosters', 'Suncorp Stadium'
+        )
         assert id1 == id2
 
     def test_different_inputs_different_ids(self):
         """Test different inputs produce different IDs."""
-        id1 = make_match_id(2024, 'Round 1', '2024-03-02', 'Brisbane Broncos', 'Sydney Roosters', 'Suncorp Stadium')
-        id2 = make_match_id(2024, 'Round 2', '2024-03-09', 'Brisbane Broncos', 'Sydney Roosters', 'Suncorp Stadium')
+        id1 = make_match_id(
+            2024, 'Round 1', '2024-03-02',
+            'Brisbane Broncos', 'Sydney Roosters', 'Suncorp Stadium'
+        )
+        id2 = make_match_id(
+            2024, 'Round 2', '2024-03-09',
+            'Brisbane Broncos', 'Sydney Roosters', 'Suncorp Stadium'
+        )
         assert id1 != id2
 
-    def test_sha1_hex_format(self):
-        """Test match_id is valid SHA-1 hex."""
+    def test_hex_format(self):
+        """Test match_id is valid hex (BLAKE2s digest_size=16 = 32 hex chars)."""
         mid = make_match_id(2024, 'Round 1', '2024-03-02', 'Brisbane', 'Sydney', 'Venue')
-        assert len(mid) == 40  # Full SHA-1 hex
+        assert len(mid) == 32  # BLAKE2s with digest_size=16
         assert all(c in '0123456789abcdef' for c in mid)
 
 

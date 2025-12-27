@@ -1,1 +1,1 @@
-"""Tests for NRL Engine."""
+"""Test package for NRL engine."""

@@ -1,3 +1,9 @@
+<!-- BADGES:START -->
+<p align="left">
+  <a href="https://github.com/aturoa13699-lab/NRL-ENGINE/blob/data/reports/market/latest.html"><img src="https://img.shields.io/badge/market--dashboard-latest-blue" alt="Dashboard"></a>
+</p>
+<!-- BADGES:END -->
+
 # NRL Prediction Engine
 
 A point-in-time (PIT) safe NRL match prediction framework with walk-forward evaluation.

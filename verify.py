@@ -2,6 +2,10 @@
 """Verification script for NRL Engine."""
 
 import sys
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from nrl_engine import DataLoader, FeatureEngineer  # noqa: F401
 
 
 def main():
@@ -15,10 +19,6 @@ def main():
     print("\n[1/5] Testing imports...")
     try:
         from nrl_engine import Config, EvaluationHarness
-        from nrl_engine import (
-            DataLoader as _DataLoader,
-            FeatureEngineer as _FeatureEngineer,
-        )  # noqa: F401
         from nrl_engine.evaluation.odds_gate import enforce_odds_orientation
         from nrl_engine.data.sample_data import (
             generate_sample_data,

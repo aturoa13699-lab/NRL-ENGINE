@@ -1,6 +1,7 @@
 <!-- BADGES:START -->
 <p align="left">
   <a href="https://github.com/aturoa13699-lab/NRL-ENGINE/blob/data/reports/market/latest.html"><img src="https://img.shields.io/badge/market--dashboard-latest-blue" alt="Dashboard"></a>
+  <a href="https://colab.research.google.com/github/aturoa13699-lab/NRL-ENGINE/blob/main/notebooks/30_odds_ingest_colab.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Colab: Odds Ingest"></a>
 </p>
 <!-- BADGES:END -->
 

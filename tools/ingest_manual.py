@@ -27,9 +27,8 @@ def main() -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     if out.exists():
         base = pd.read_csv(out)
-        df = (
-            pd.concat([base, df], ignore_index=True)
-            .drop_duplicates(subset=["date", "home_team", "away_team"], keep="last")
+        df = pd.concat([base, df], ignore_index=True).drop_duplicates(
+            subset=["date", "home_team", "away_team"], keep="last"
         )
 
     df.sort_values(["date", "home_team", "away_team"], inplace=True)

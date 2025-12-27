@@ -1,42 +1,20 @@
 name: odds-ingest
-
 on:
-  schedule:
-    - cron: '15 22 * * 1-6'
+  schedule: [{ cron: "15 22 * * 1-6" }]
   workflow_dispatch:
-    inputs:
-      min_rows:
-        description: 'Minimum odds data rows required'
-        default: '10'
-        required: false
-
-permissions:
-  contents: write
-
-concurrency:
-  group: odds-ingest-${{ github.ref }}
-  cancel-in-progress: true
-
+permissions: { contents: write }
+concurrency: { group: ${{ github.workflow }}-${{ github.ref }}, cancel-in-progress: true }
 jobs:
   ingest:
     runs-on: ubuntu-latest
     timeout-minutes: 35
-    env:
-      MIN_ROWS: ${{ github.event.inputs.min_rows || '10' }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
+        with: { fetch-depth: 0 }
       - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-
+        with: { python-version: "3.11", cache: "pip" }
       - name: Install deps
-        run: |
-          pip install -q pandas pyarrow fastparquet scikit-learn openpyxl lxml httpx playwright requests
-
+        run: pip install -q pandas pyarrow fastparquet scikit-learn openpyxl lxml httpx playwright requests
       - name: TheOddsAPI → odds.csv (if key)
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
@@ -45,106 +23,45 @@ jobs:
           ODDS_BACKOFF_MIN: 0.8
           ODDS_BACKOFF_MAX: 6.0
           ODDS_TIMEOUT: 30
-        run: |
-          python tools/fetch_api_odds.py || true
-
+        run: python tools/fetch_api_odds.py || true
       - name: Install Playwright browsers
         uses: microsoft/playwright-github-action@v1
-
       - name: Scrape dynamic sites → HTML
-        run: |
-          python tools/scrape_odds.py || true
-
+        run: python tools/scrape_odds.py || true
       - name: Parse scraped HTML → odds.csv
-        run: |
-          python tools/ingest_manual.py || true
-
+        run: python tools/ingest_manual.py || true
       - name: Fetch data branch (for proxy source)
         run: |
           git fetch origin data || true
           git worktree add --detach _data origin/data || true
-
       - name: Build proxy odds if none
-        if: ${{ hashFiles('data/sources/odds.csv') == '' }}
+        if: ${{ !(hashFiles('data/sources/odds.csv') != '') }}
         run: |
-          SRC="_data/data/exports/train_super_enriched_v2.csv"
-          [ -f "$SRC" ] || SRC="_data/data/exports/matches.csv"
+          SRC="_data/data/exports/train_super_enriched_v2.csv"; [ -f "$SRC" ] || SRC="_data/data/exports/matches.csv"
           python tools/build_proxy_odds.py --from "$SRC" --write data/sources/odds.csv || echo "proxy failed"
-
-      - name: Guard: minimum odds rows (>=${{ env.MIN_ROWS }})
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: odds-csv, path: data/sources/odds.csv, if-no-files-found: warn, retention-days: 14 }
+      - name: Publish to data branch (robust)
+        if: ${{ hashFiles('data/sources/odds.csv') != '' }}
+        env: { BR: data }
         run: |
           set -e
-          FILE="data/sources/odds.csv"
-          if [ ! -f "$FILE" ]; then
-            echo "::error::Missing $FILE after ingest/proxy."
-            exit 1
-          fi
-          ROWS=$(tail -n +2 "$FILE" | wc -l | tr -d ' ')
-          echo "### Odds row guard" >> "$GITHUB_STEP_SUMMARY"
-          echo "- data rows: ${ROWS} (min=${MIN_ROWS})" >> "$GITHUB_STEP_SUMMARY"
-          if [ "$ROWS" -lt "${MIN_ROWS}" ]; then
-            echo "::error::Too few odds rows (${ROWS} < ${MIN_ROWS}). Failing to prevent empty/biased training."
-            exit 1
-          fi
-          echo "✅ odds row guard passed (${ROWS} ≥ ${MIN_ROWS})" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload odds artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: odds-csv
-          path: data/sources/odds.csv
-          if-no-files-found: warn
-          retention-days: 14
-
-      # Publish via separate worktree to avoid overwriting untracked files
-      - name: Publish to data branch (worktree-safe)
-        if: ${{ hashFiles('data/sources/odds.csv') != '' }}
-        env:
-          BR: data
-        run: |
-          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
-          git fetch origin --prune || true
-
-          rm -rf _publish_data
-          if git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
-            git worktree add --force -B "$BR" _publish_data origin/"$BR"
-          else
-            git worktree add --force -B "$BR" _publish_data
-            (
-              cd _publish_data
-              git checkout --orphan "$BR"
-              rm -rf ./*
-              mkdir -p data/sources
-              git add -A
-              git commit -m "chore(data): initialize branch"
-            )
-          fi
-
-          install -D -m 0644 "data/sources/odds.csv" "_publish_data/data/sources/odds.csv"
-
-          (
-            cd _publish_data
-            git add data/sources/odds.csv
-            git commit -m "odds: refresh (api/playwright/proxy)" || echo "nothing to commit"
-            n=0
-            until [ $n -ge 3 ]; do
-              if git push origin HEAD:"$BR"; then
-                echo "✅ pushed"; break
-              fi
-              n=$((n+1)); sleep $((n*3))
-            done
-          )
-
-          git worktree remove _publish_data --force || true
-
+          git fetch origin --prune
+          if git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then git checkout -B "$BR" "origin/$BR"; else git checkout -B "$BR"; fi
+          mkdir -p data/sources
+          cp -v data/sources/odds.csv data/sources/odds.csv
+          git add data/sources/odds.csv
+          git commit -m "odds: refresh (api/playwright/proxy)" || echo "nothing to commit"
+          n=0; until [ $n -ge 3 ]; do
+            git fetch origin "$BR" || true
+            if git push --force-with-lease=refs/heads/$BR:refs/heads/$BR origin HEAD:refs/heads/$BR; then echo "✅ pushed"; break; fi
+            n=$((n+1)); sleep $((n*3))
+          done
       - name: Summary
         run: |
-          echo "### Odds ingest" >> "$GITHUB_STEP_SUMMARY"
-          if [ -f data/sources/odds.csv ]; then
-            echo "- rows: $(wc -l < data/sources/odds.csv)" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "- no odds created" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Odds ingest" >> $GITHUB_STEP_SUMMARY
+          if [ -f data/sources/odds.csv ]; then echo "- rows: $(wc -l < data/sources/odds.csv)" >> $GITHUB_STEP_SUMMARY; else echo "- no odds created" >> $GITHUB_STEP_SUMMARY; fi

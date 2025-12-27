@@ -1,0 +1,78 @@
+name: ml-market-report
+on:
+  schedule: [{ cron: "45 22 * * 2" }]  # Tue 09:45 AEST
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: Fetch data branch
+        run: |
+          git fetch origin data || true
+          mkdir -p data_worktree
+          if git rev-parse --verify origin/data >/dev/null 2>&1; then
+            git worktree add --detach data_worktree origin/data
+          fi
+          mkdir -p data/exports data/sources reports
+          if [ -d data_worktree/data/exports ]; then
+            cp -r data_worktree/data/exports/* data/exports/ || true
+          fi
+          if [ -d data_worktree/data/sources ]; then
+            cp -r data_worktree/data/sources/* data/sources/ || true
+          fi
+
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+
+      - name: Install deps
+        run: |
+          pip install -q "pandas>=2" "pyarrow" "fastparquet" \
+            "scikit-learn>=1.3" "scipy" "papermill" "nbconvert" "jupyter"
+
+      - name: Run anchored training CLI
+        run: |
+          python -m tools.train_market_anchor \
+            --data data/exports/train_super_enriched_v2.csv \
+            --odds data/sources/odds.csv \
+            --calibrate isotonic | tee reports/market_anchor_metrics.json
+
+      - name: Build HTML report (Papermill)
+        run: |
+          echo '{"params":{}}' > params.json
+          if [ -f notebooks/60_market_anchored_training.ipynb ]; then
+            papermill notebooks/60_market_anchored_training.ipynb \
+              reports/60_market_anchored_out.ipynb -k python3 -f params.json || true
+            jupyter nbconvert --to html --output-dir "reports" \
+              "reports/60_market_anchored_out.ipynb" || true
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ml-market-report
+          path: |
+            reports/*.html
+            reports/*.json
+          retention-days: 14
+
+      - name: Commit report to data branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin data || true
+          if git rev-parse --verify origin/data >/dev/null 2>&1; then
+            git checkout -B data origin/data
+          else
+            git checkout -B data
+          fi
+          mkdir -p reports/market
+          cp reports/*.html reports/market/ 2>/dev/null || true
+          cp reports/*.json reports/market/ 2>/dev/null || true
+          git add reports/market/* || true
+          git commit -m "reports: weekly market-anchored metrics" || echo "nothing to commit"
+          git push --force-with-lease origin data

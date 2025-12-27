@@ -111,3 +111,23 @@ All outputs saved to `EVAL_DIR`:
 ## License
 
 MIT
+
+### Market-Anchored Training (CLI)
+
+Run locally with exported data:
+
+```bash
+python -m tools.train_market_anchor \
+  --data data/exports/train_super_enriched_v2.csv \
+  --odds data/sources/odds.csv \
+  --calibrate isotonic
+```
+
+Weekly HTML reports are published by `ml-market-report` workflow into the `data` branch under `reports/market/`.
+
+### Data for Colab
+
+The `export-data` workflow exports match data to the `data` branch weekly:
+- `data/exports/matches.parquet` - All matches
+- `data/exports/matches.csv` - CSV format
+

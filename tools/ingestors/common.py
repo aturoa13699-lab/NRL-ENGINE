@@ -31,8 +31,13 @@ def finalize(df: pd.DataFrame, source: str) -> pd.DataFrame:
 
     frame = df[cols].copy()
     frame["source"] = source
-    frame.dropna(subset=["home_team", "away_team", "home_odds_close", "away_odds_close"], inplace=True)
+    frame.dropna(
+        subset=["home_team", "away_team", "home_odds_close", "away_odds_close"],
+        inplace=True,
+    )
     frame = frame[frame["home_odds_close"].astype(float) > 1.01]
     frame = frame[frame["away_odds_close"].astype(float) > 1.01]
-    frame.drop_duplicates(subset=["date", "home_team", "away_team"], keep="last", inplace=True)
+    frame.drop_duplicates(
+        subset=["date", "home_team", "away_team"], keep="last", inplace=True
+    )
     return frame

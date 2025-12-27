@@ -1,5 +1,4 @@
 name: odds-ingest
-
 on:
   schedule:
     - cron: '15 22 * * 1-6'
@@ -20,16 +19,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
-
+          cache: pip
       - name: Install deps
-        run: |
-          pip install -q pandas pyarrow fastparquet scikit-learn openpyxl lxml httpx playwright requests
-
+        run: pip install -q pandas pyarrow fastparquet scikit-learn openpyxl lxml httpx playwright requests
       - name: TheOddsAPI → odds.csv (if key)
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
@@ -38,30 +33,21 @@ jobs:
           ODDS_BACKOFF_MIN: 0.8
           ODDS_BACKOFF_MAX: 6.0
           ODDS_TIMEOUT: 30
-        run: |
-          python tools/fetch_api_odds.py || true
-
+        run: python tools/fetch_api_odds.py || true
       - name: Install Playwright browsers
         uses: microsoft/playwright-github-action@v1
-
       - name: Scrape dynamic sites → HTML
-        run: |
-          python tools/scrape_odds.py || true
-
+        run: python tools/scrape_odds.py || true
       - name: Parse scraped HTML → odds.csv
-        run: |
-          python tools/ingest_manual.py || true
-
+        run: python tools/ingest_manual.py || true
       - name: Fetch data branch (for proxy source)
         run: |
           git fetch origin data || true
           git worktree add --detach _data origin/data || true
-
       - name: Build proxy odds if none
         if: ${{ hashFiles('data/sources/odds.csv') == '' }}
         run: |
-          SRC="_data/data/exports/train_super_enriched_v2.csv"
-          [ -f "$SRC" ] || SRC="_data/data/exports/matches.csv"
+          SRC="_data/data/exports/train_super_enriched_v2.csv"; [ -f "$SRC" ] || SRC="_data/data/exports/matches.csv"
           python tools/build_proxy_odds.py --from "$SRC" --write data/sources/odds.csv || echo "proxy failed"
 
       - name: Guard: minimum odds rows (>=10)
@@ -69,20 +55,15 @@ jobs:
           set -e
           FILE="data/sources/odds.csv"
           if [ ! -f "$FILE" ]; then
-            echo "::error::Missing $FILE after ingest/proxy."
-            exit 1
+            echo "::error::Missing $FILE after ingest/proxy."; exit 1
           fi
           ROWS=$(tail -n +2 "$FILE" | wc -l | tr -d ' ')
           echo "### Odds row guard" >> "$GITHUB_STEP_SUMMARY"
           echo "- data rows: ${ROWS} (min=10)" >> "$GITHUB_STEP_SUMMARY"
-          if [ "$ROWS" -lt 10 ]; then
-            echo "::error::Too few odds rows (${ROWS} < 10)."
-            exit 1
-          fi
+          [ "$ROWS" -ge 10 ] || { echo "::error::Too few odds rows (${ROWS} < 10)."; exit 1; }
 
-      - name: Upload odds artifact
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
           name: odds-csv
           path: data/sources/odds.csv
@@ -107,14 +88,7 @@ jobs:
             git worktree add --force -B "$BR" _publish_data origin/"$BR"
           else
             git worktree add --force -B "$BR" _publish_data
-            (
-              cd _publish_data
-              git checkout --orphan "$BR"
-              rm -rf ./*
-              mkdir -p data/sources
-              git add -A
-              git commit -m "chore(data): initialize branch"
-            )
+            ( cd _publish_data && git checkout --orphan "$BR" && rm -rf ./* && mkdir -p data/sources && git add -A && git commit -m "chore(data): initialize branch" )
           fi
 
           install -D -m 0644 "data/sources/odds.csv" "_publish_data/data/sources/odds.csv"
@@ -137,8 +111,5 @@ jobs:
       - name: Summary
         if: always()
         run: |
-          echo "### Odds ingest" >> "$GITHUB_STEP_SUMMARY"
-          if [ -f data/sources/odds.csv ]; then
-            echo "- rows: $(wc -l < data/sources/odds.csv)" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "- no odds created" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Odds ingest" >> $GITHUB_STEP_SUMMARY
+          if [ -f data/sources/odds.csv ]; then echo "- rows: $(wc -l < data/sources/odds.csv)" >> $GITHUB_STEP_SUMMARY; else echo "- no odds created" >> $GITHUB_STEP_SUMMARY; fi

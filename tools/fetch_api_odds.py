@@ -7,7 +7,7 @@ import statistics as stats
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable, Mapping
+from collections.abc import Iterable, Mapping
 
 import pandas as pd
 import requests
@@ -75,7 +75,10 @@ def normalize(events: Iterable[Mapping[str, object]]) -> pd.DataFrame:
                 if market.get("key") != "h2h":
                     continue
 
-                prices = {o.get("name"): o.get("price") for o in market.get("outcomes", []) or []}
+                prices = {
+                    o.get("name"): o.get("price")
+                    for o in market.get("outcomes", []) or []
+                }
                 home_price, away_price = prices.get(home), prices.get(away)
                 if home_price is None or away_price is None:
                     continue
@@ -110,7 +113,12 @@ def main() -> int:
     url = f"https://api.the-odds-api.com/v4/sports/{SPORT}/odds"
     response = _req(
         url,
-        {"apiKey": API_KEY, "regions": REGIONS, "markets": MARKETS, "oddsFormat": "decimal"},
+        {
+            "apiKey": API_KEY,
+            "regions": REGIONS,
+            "markets": MARKETS,
+            "oddsFormat": "decimal",
+        },
     )
     if response.status_code != 200:
         print("API FAIL:", response.status_code, response.text[:200])
@@ -119,7 +127,9 @@ def main() -> int:
     today = datetime.utcnow().strftime("%Y%m%d")
     snapshot = Path(f"manual_feeds/{today}")
     snapshot.mkdir(parents=True, exist_ok=True)
-    (snapshot / "api_odds.json").write_text(json.dumps(response.json(), indent=2), encoding="utf-8")
+    (snapshot / "api_odds.json").write_text(
+        json.dumps(response.json(), indent=2), encoding="utf-8"
+    )
 
     df = normalize(response.json())
     if df.empty:
@@ -131,9 +141,8 @@ def main() -> int:
     out = destination / "odds.csv"
     if out.exists():
         base = pd.read_csv(out)
-        df = (
-            pd.concat([base, df], ignore_index=True)
-            .drop_duplicates(subset=["date", "home_team", "away_team"], keep="last")
+        df = pd.concat([base, df], ignore_index=True).drop_duplicates(
+            subset=["date", "home_team", "away_team"], keep="last"
         )
     df.sort_values(["date", "home_team", "away_team"], inplace=True)
     df.to_csv(out, index=False)

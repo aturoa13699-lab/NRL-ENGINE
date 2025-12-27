@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Iterable
+from collections.abc import Iterable
 
 import pandas as pd
 
@@ -60,16 +60,31 @@ def _load_proxy_frame(source_path: Path) -> pd.DataFrame:
     out["away_team"] = df["away_team"]
 
     out["source"] = "proxy"
-    out = out.dropna(subset=["date", "home_team", "away_team", "home_odds_close", "away_odds_close"])
+    out = out.dropna(
+        subset=["date", "home_team", "away_team", "home_odds_close", "away_odds_close"]
+    )
     out = out[out["home_odds_close"] > 1.01]
     out = out[out["away_odds_close"] > 1.01]
     out = out.drop_duplicates(subset=["date", "home_team", "away_team"], keep="last")
-    return out[["date", "home_team", "away_team", "home_odds_close", "away_odds_close", "source"]]
+    return out[
+        [
+            "date",
+            "home_team",
+            "away_team",
+            "home_odds_close",
+            "away_odds_close",
+            "source",
+        ]
+    ]
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build proxy odds from historical exports")
-    parser.add_argument("--from", dest="source", required=True, help="CSV source for proxy odds")
+    parser = argparse.ArgumentParser(
+        description="Build proxy odds from historical exports"
+    )
+    parser.add_argument(
+        "--from", dest="source", required=True, help="CSV source for proxy odds"
+    )
     parser.add_argument(
         "--write",
         dest="target",
@@ -88,9 +103,8 @@ def main() -> int:
     target_path.parent.mkdir(parents=True, exist_ok=True)
     if target_path.exists():
         base = pd.read_csv(target_path)
-        proxy_df = (
-            pd.concat([base, proxy_df], ignore_index=True)
-            .drop_duplicates(subset=["date", "home_team", "away_team"], keep="last")
+        proxy_df = pd.concat([base, proxy_df], ignore_index=True).drop_duplicates(
+            subset=["date", "home_team", "away_team"], keep="last"
         )
 
     proxy_df.sort_values(["date", "home_team", "away_team"], inplace=True)

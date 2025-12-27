@@ -323,3 +323,12 @@ Don’t
 ⸻
 
 End of AGENT.md
+
+## Codex PR Discipline (avoid conflicts)
+Always:
+1. `git fetch origin && git checkout main && git pull --ff-only origin main`
+2. `git checkout -b "codex/<task-slug>"`
+3. Make changes + commit.
+4. Before push: `git fetch origin && git rebase origin/main || git merge --no-ff origin/main`
+5. Push: `git push -u origin HEAD`
+6. If rebasing: `git config --global rerere.enabled true && git config --global rerere.autoupdate true` (remembers conflict resolutions).

@@ -114,28 +114,59 @@ jobs:
 
       - name: Publish dashboard to data branch
         if: always()
+        env:
+          BR: data
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin data || true
-          if git rev-parse --verify origin/data >/dev/null 2>&1; then
-            git checkout -B data origin/data
+
+          # Always start from latest remote state if it exists
+          git fetch origin --prune
+          if git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
+            git checkout -B "$BR" "origin/$BR"
           else
-            git checkout -B data
+            git checkout -B "$BR"
           fi
+
           mkdir -p reports/market
           TS=$(date -u +%Y%m%dT%H%M%SZ)
           mkdir -p "reports/market/${TS}"
-          cp reports/*.html "reports/market/${TS}/" 2>/dev/null || true
-          cp reports/*.json "reports/market/${TS}/" 2>/dev/null || true
-          # update latest pointers
+
+          # Copy reports (handle both same-dir and parent-dir scenarios)
+          SRC_DIR="reports"
+          [ -d "../reports" ] && SRC_DIR="../reports"
+          cp ${SRC_DIR}/*.html "reports/market/${TS}/" 2>/dev/null || true
+          cp ${SRC_DIR}/*.json "reports/market/${TS}/" 2>/dev/null || true
+
+          # Update latest pointers
           rm -f reports/market/latest.html reports/market/metrics.json 2>/dev/null || true
-          [ -f "reports/market_dashboard.html" ] && cp reports/market_dashboard.html reports/market/latest.html
-          [ -f "reports/metrics.json" ] && cp reports/metrics.json reports/market/metrics.json
+          if [ -f "${SRC_DIR}/market_dashboard.html" ]; then
+            cp "${SRC_DIR}/market_dashboard.html" reports/market/latest.html
+          fi
+          [ -f "${SRC_DIR}/metrics.json" ] && cp "${SRC_DIR}/metrics.json" reports/market/metrics.json
+
           git add reports/market/* || true
           git commit -m "reports: market-anchored dashboard ${TS}" || echo "nothing to commit"
-          git push --force-with-lease origin data
+
+          # Push with retries to handle race conditions
+          n=0
+          until [ $n -ge 3 ]; do
+            git fetch origin "$BR" 2>/dev/null || true
+            if git push --force-with-lease origin HEAD:refs/heads/$BR 2>/dev/null; then
+              echo "✅ Pushed to ${BR}"
+              break
+            fi
+            n=$((n+1))
+            delay=$((n*3))
+            echo "Push race; retrying in ${delay}s..."
+            sleep $delay
+            # Rebase on latest remote
+            git fetch origin "$BR" 2>/dev/null || true
+            git rebase "origin/$BR" 2>/dev/null || git rebase --abort 2>/dev/null || true
+          done
+          [ $n -lt 3 ] || echo "::warning::Push to data branch failed after retries"
 
       - name: Job Summary
         run: |

@@ -126,21 +126,42 @@ jobs:
 
       - name: Commit to data branch
         if: steps.export.outputs.exported == 'true'
+        env:
+          BR: ${{ env.DATA_BRANCH }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -e
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # fetch remote data branch if it exists
-          git fetch origin $DATA_BRANCH || true
-          # base local branch on origin/data when present; else create new
-          if git rev-parse --verify origin/$DATA_BRANCH >/dev/null 2>&1; then
-            git checkout -B $DATA_BRANCH origin/$DATA_BRANCH
+
+          # Always start from latest remote state if it exists
+          git fetch origin --prune
+          if git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
+            git checkout -B "$BR" "origin/$BR"
           else
-            git checkout -B $DATA_BRANCH
+            git checkout -B "$BR"
           fi
+
           git add $OUT_DIR/*
-          git commit -m "data: refresh exports" || echo "nothing to commit"
-          # allow overwriting generated history on data branch only
-          git push --force-with-lease origin $DATA_BRANCH
+          git commit -m "data: refresh exports $(date -u +%Y%m%dT%H%M%SZ)" || echo "nothing to commit"
+
+          # Push with retries to handle race conditions
+          n=0
+          until [ $n -ge 3 ]; do
+            git fetch origin "$BR" 2>/dev/null || true
+            if git push --force-with-lease origin HEAD:refs/heads/$BR 2>/dev/null; then
+              echo "✅ Pushed to ${BR}"
+              break
+            fi
+            n=$((n+1))
+            delay=$((n*3))
+            echo "Push race; retrying in ${delay}s..."
+            sleep $delay
+            # Rebase on latest remote
+            git fetch origin "$BR" 2>/dev/null || true
+            git rebase "origin/$BR" 2>/dev/null || git rebase --abort 2>/dev/null || true
+          done
+          [ $n -lt 3 ] || echo "::warning::Push to data branch failed after retries"
 
       - uses: actions/upload-artifact@v4
         if: steps.export.outputs.exported == 'true'

@@ -310,22 +310,46 @@ jobs:
 
       - name: Commit refreshed datasets to data branch
         if: ${{ github.event.inputs.commit_to_data == 'true' && steps.enrich.outputs.enriched == 'true' }}
+        env:
+          BR: data
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -e
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin data || true
-          if git rev-parse --verify origin/data >/dev/null 2>&1; then
-            git checkout -B data origin/data
+
+          # Always start from latest remote state if it exists
+          git fetch origin --prune
+          if git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
+            git checkout -B "$BR" "origin/$BR"
           else
-            git checkout -B data
+            git checkout -B "$BR"
           fi
+
           mkdir -p data/exports
           cp -v "$DEST_DIR/train_super_enriched_v2.csv" data/exports/ 2>/dev/null || true
           cp -v "$DEST_DIR/matches.csv" data/exports/ 2>/dev/null || true
           cp -v "$DEST_DIR/matches.parquet" data/exports/ 2>/dev/null || true
           git add data/exports/* || true
-          git commit -m "data: refresh exports" || echo "nothing to commit"
-          git push --force-with-lease origin data
+          git commit -m "data: refresh exports $(date -u +%Y%m%dT%H%M%SZ)" || echo "nothing to commit"
+
+          # Push with retries to handle race conditions
+          n=0
+          until [ $n -ge 3 ]; do
+            git fetch origin "$BR" 2>/dev/null || true
+            if git push --force-with-lease origin HEAD:refs/heads/$BR 2>/dev/null; then
+              echo "✅ Pushed to ${BR}"
+              break
+            fi
+            n=$((n+1))
+            delay=$((n*3))
+            echo "Push race; retrying in ${delay}s..."
+            sleep $delay
+            # Rebase on latest remote
+            git fetch origin "$BR" 2>/dev/null || true
+            git rebase "origin/$BR" 2>/dev/null || git rebase --abort 2>/dev/null || true
+          done
+          [ $n -lt 3 ] || echo "::warning::Push to data branch failed after retries"
 
       - name: Job summary
         if: always()

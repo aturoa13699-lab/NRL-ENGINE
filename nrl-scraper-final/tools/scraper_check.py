@@ -7,6 +7,7 @@ Validates that scraper can fetch and parse at least one match.
 Usage:
     python -m tools.scraper_check --season 2024 --limit 1
 """
+
 import argparse
 import sys
 
@@ -30,6 +31,7 @@ def main():
 
     # Sample matches
     import random
+
     random.seed(42)
     sample = random.sample(rows, min(args.limit, len(rows)))
 

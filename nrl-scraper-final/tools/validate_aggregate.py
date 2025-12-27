@@ -7,6 +7,7 @@ Validates season data against expected totals and coverage.
 Usage:
     python -m tools.validate_aggregate --season 2024 --expected-total 213 --expected-regular 204
 """
+
 import argparse
 import sys
 from datetime import date
@@ -41,9 +42,17 @@ def main():
 
     # Check required columns
     required = {
-        'match_id', 'date', 'season', 'round',
-        'home_team', 'away_team', 'home_score', 'away_score',
-        'venue', 'referee', 'crowd',
+        'match_id',
+        'date',
+        'season',
+        'round',
+        'home_team',
+        'away_team',
+        'home_score',
+        'away_score',
+        'venue',
+        'referee',
+        'crowd',
     }
     missing = [c for c in required if c not in df.columns]
     if missing:
@@ -103,7 +112,9 @@ def main():
         min_date = reg['date'].min()
         max_date = df['date'].max()
         if not (min_date >= START_2024 and max_date <= END_2024):
-            print(f'ERROR: date range {min_date}..{max_date} outside expected {START_2024}..{END_2024}')
+            print(
+                f'ERROR: date range {min_date}..{max_date} outside expected {START_2024}..{END_2024}'
+            )
             ok = False
         else:
             print(f'✓ Date range: {min_date} to {max_date}')
@@ -119,10 +130,12 @@ def main():
         print('✓ No nulls in identity fields')
 
     # Summary
-    print(f'\n📊 Summary:')
+    print('\n📊 Summary:')
     print(f'   Total: {total} | Regular: {total_reg} | Finals: {len(fin)}')
     print(f'   Teams: {len(teams)} | Venues: {df["venue"].nunique()}')
-    print(f'   Referees: {df["referee"].dropna().nunique()} (missing: {df["referee"].isna().sum()})')
+    print(
+        f'   Referees: {df["referee"].dropna().nunique()} (missing: {df["referee"].isna().sum()})'
+    )
 
     if ok:
         print(f'\n✅ PASS: season {args.season} validated successfully')

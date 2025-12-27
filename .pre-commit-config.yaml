@@ -4,7 +4,9 @@ repos:
     rev: v4.6.0
     hooks:
       - id: trailing-whitespace
+        exclude: \.ipynb$
       - id: end-of-file-fixer
+        exclude: \.ipynb$
       - id: check-added-large-files
       - id: detect-private-key
 

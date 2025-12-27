@@ -18,8 +18,15 @@ def test_full_pipeline_with_sample_data():
     data = generate_sample_data(n_matches=300, seasons=[2022, 2023, 2024])
 
     # Verify required columns
-    required = {'match_id', 'date', 'home_team', 'away_team',
-                'home_score', 'away_score', 'home_win'}
+    required = {
+        "match_id",
+        "date",
+        "home_team",
+        "away_team",
+        "home_score",
+        "away_score",
+        "home_win",
+    }
     assert required.issubset(data.columns), f"Missing: {required - set(data.columns)}"
 
     # Run evaluation
@@ -28,10 +35,10 @@ def test_full_pipeline_with_sample_data():
     results = harness.run_evaluation(test_seasons=[2024])
 
     # Verify results
-    assert 'predictions' in results
-    assert len(results['predictions']) > 0
-    assert 'metrics' in results
-    assert results['metrics']['model_metrics']['accuracy']['accuracy'] > 0
+    assert "predictions" in results
+    assert len(results["predictions"]) > 0
+    assert "metrics" in results
+    assert results["metrics"]["model_metrics"]["accuracy"]["accuracy"] > 0
 
 
 def test_save_and_reload_data():
@@ -52,10 +59,10 @@ def test_save_and_reload_data():
         # Reload
         loaded_data, meta = loader.load(prefer="proc")
 
-        assert meta['source'] == 'file'
+        assert meta["source"] == "file"
         assert len(loaded_data) == len(data)
-        assert 'home_team' in loaded_data.columns
-        assert 'home_score' in loaded_data.columns
+        assert "home_team" in loaded_data.columns
+        assert "home_score" in loaded_data.columns
 
 
 def test_date_handling_from_csv():
@@ -77,7 +84,7 @@ def test_date_handling_from_csv():
         loaded_data, meta = loader.load(prefer="proc")
 
         # Verify dates are datetime
-        assert pd.api.types.is_datetime64_any_dtype(loaded_data['date'])
+        assert pd.api.types.is_datetime64_any_dtype(loaded_data["date"])
 
 
 if __name__ == "__main__":

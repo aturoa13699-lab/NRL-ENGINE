@@ -2,6 +2,11 @@
 """Verification script for NRL Engine."""
 
 import sys
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from nrl_engine import DataLoader, FeatureEngineer  # noqa: F401
+
 
 def main():
     print("=" * 60)
@@ -14,9 +19,12 @@ def main():
     print("\n[1/5] Testing imports...")
     try:
         from nrl_engine import Config, EvaluationHarness
-        from nrl_engine import DataLoader as _DataLoader, FeatureEngineer as _FeatureEngineer  # noqa: F401
         from nrl_engine.evaluation.odds_gate import enforce_odds_orientation
-        from nrl_engine.data.sample_data import generate_sample_data, validate_sample_data
+        from nrl_engine.data.sample_data import (
+            generate_sample_data,
+            validate_sample_data,
+        )
+
         print("  ✓ All imports successful")
     except ImportError as e:
         errors.append(f"Import failed: {e}")
@@ -40,7 +48,9 @@ def main():
         validation = validate_sample_data(data)
         assert validation["correlation_healthy"], "Correlation should be healthy"
         assert validation["overall_healthy"], "Overall should be healthy"
-        print(f"  ✓ Validation passed: correlation={validation['market_outcome_correlation']:.3f}")
+        print(
+            f"  ✓ Validation passed: correlation={validation['market_outcome_correlation']:.3f}"
+        )
     except Exception as e:
         errors.append(f"Validation failed: {e}")
         print(f"  ✗ {e}")
@@ -52,8 +62,13 @@ def main():
         config.odds_auto_fix = True
         config.odds_fail_on_ambiguous = False
 
-        fixed_data, report = enforce_odds_orientation(data, config=config, verbose=False)
-        assert report["chosen"] in ["as_is", "swapped"], f"Unexpected choice: {report['chosen']}"
+        fixed_data, report = enforce_odds_orientation(
+            data, config=config, verbose=False
+        )
+        assert report["chosen"] in [
+            "as_is",
+            "swapped",
+        ], f"Unexpected choice: {report['chosen']}"
         print(f"  ✓ Orientation: {report['chosen']}, action: {report['action']}")
     except Exception as e:
         errors.append(f"Odds gate failed: {e}")
@@ -73,7 +88,9 @@ def main():
         assert "metrics" in results
 
         acc = results["metrics"]["model_metrics"]["accuracy"]["accuracy"]
-        print(f"  ✓ Pipeline complete: {len(results['predictions'])} predictions, accuracy={acc:.1%}")
+        print(
+            f"  ✓ Pipeline complete: {len(results['predictions'])} predictions, accuracy={acc:.1%}"
+        )
     except Exception as e:
         errors.append(f"Pipeline failed: {e}")
         print(f"  ✗ {e}")
@@ -88,6 +105,7 @@ def main():
     else:
         print("ALL CHECKS PASSED ✓")
         return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

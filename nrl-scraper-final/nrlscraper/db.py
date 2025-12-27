@@ -3,11 +3,12 @@ Database layer for NRL Scraper (SPEC-1).
 
 PostgreSQL 15 via SQLAlchemy 2.0 + psycopg3.
 """
+
+from collections.abc import Generator, Iterable
 from contextlib import contextmanager
-from typing import Iterable, Generator
 
 from sqlalchemy import create_engine, text
-from sqlalchemy.engine import Engine, Connection
+from sqlalchemy.engine import Connection, Engine
 
 from nrlscraper.config import settings
 

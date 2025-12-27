@@ -4,8 +4,10 @@ Tests for NRL Scraper (SPEC-1).
 Unit tests run without network access.
 Integration tests (marked) hit live RLP site.
 """
-import pytest
+
 from datetime import date
+
+import pytest
 
 from nrlscraper import NRLScraper, normalize_team, normalize_venue
 from nrlscraper.models import MatchRow
@@ -49,24 +51,20 @@ class TestMatchId:
     def test_deterministic(self):
         """Test match_id is deterministic."""
         id1 = make_match_id(
-            2024, 'Round 1', '2024-03-02',
-            'Brisbane Broncos', 'Sydney Roosters', 'Suncorp Stadium'
+            2024, 'Round 1', '2024-03-02', 'Brisbane Broncos', 'Sydney Roosters', 'Suncorp Stadium'
         )
         id2 = make_match_id(
-            2024, 'Round 1', '2024-03-02',
-            'Brisbane Broncos', 'Sydney Roosters', 'Suncorp Stadium'
+            2024, 'Round 1', '2024-03-02', 'Brisbane Broncos', 'Sydney Roosters', 'Suncorp Stadium'
         )
         assert id1 == id2
 
     def test_different_inputs_different_ids(self):
         """Test different inputs produce different IDs."""
         id1 = make_match_id(
-            2024, 'Round 1', '2024-03-02',
-            'Brisbane Broncos', 'Sydney Roosters', 'Suncorp Stadium'
+            2024, 'Round 1', '2024-03-02', 'Brisbane Broncos', 'Sydney Roosters', 'Suncorp Stadium'
         )
         id2 = make_match_id(
-            2024, 'Round 2', '2024-03-09',
-            'Brisbane Broncos', 'Sydney Roosters', 'Suncorp Stadium'
+            2024, 'Round 2', '2024-03-09', 'Brisbane Broncos', 'Sydney Roosters', 'Suncorp Stadium'
         )
         assert id1 != id2
 
@@ -186,7 +184,17 @@ class TestRLP2024:
     @pytest.mark.integration
     def test_2024_required_columns(self, season_2024_rows):
         """Test required columns are present."""
-        required = ['match_id', 'date', 'season', 'round', 'home_team', 'away_team', 'venue', 'referee', 'crowd']
+        required = [
+            'match_id',
+            'date',
+            'season',
+            'round',
+            'home_team',
+            'away_team',
+            'venue',
+            'referee',
+            'crowd',
+        ]
         row = season_2024_rows[0]
         for col in required:
             assert col in row, f'Missing column: {col}'

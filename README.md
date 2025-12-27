@@ -1,3 +1,9 @@
+<!-- BADGES:START -->
+<p align="left">
+  <a href="https://github.com/aturoa13699-lab/NRL-ENGINE/blob/data/reports/market/latest.html"><img src="https://img.shields.io/badge/market--dashboard-latest-blue" alt="Dashboard"></a>
+</p>
+<!-- BADGES:END -->
+
 # NRL Prediction Engine
 
 A point-in-time (PIT) safe NRL match prediction framework with walk-forward evaluation.
@@ -111,3 +117,22 @@ All outputs saved to `EVAL_DIR`:
 ## License
 
 MIT
+
+### Market-Anchored Training (CLI)
+
+Run locally with exported data:
+
+```bash
+python -m tools.train_market_anchor \
+  --data data/exports/train_super_enriched_v2.csv \
+  --odds data/sources/odds.csv \
+  --calibrate isotonic
+```
+
+Weekly HTML reports are published by `ml-market-report` workflow into the `data` branch under `reports/market/`.
+
+### Data for Colab
+
+The `export-data` workflow exports match data to the `data` branch weekly:
+- `data/exports/matches.parquet` - All matches
+- `data/exports/matches.csv` - CSV format

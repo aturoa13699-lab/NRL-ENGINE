@@ -1,20 +1,21 @@
-from fastapi import FastAPI
 from datetime import datetime
 
-app = FastAPI(title="nrl-scraper-health", version="1.0.0")
-START = datetime.utcnow().isoformat() + "Z"
+from fastapi import FastAPI
+
+app = FastAPI(title='nrl-scraper-health', version='1.0.0')
+START = datetime.utcnow().isoformat() + 'Z'
 
 
-@app.get("/")
+@app.get('/')
 def root():
-    return {"service": "nrl-scraper", "status": "ok", "start": START}
+    return {'service': 'nrl-scraper', 'status': 'ok', 'start': START}
 
 
-@app.get("/health")
+@app.get('/health')
 def health():
-    return {"ok": True}
+    return {'ok': True}
 
 
-@app.get("/ready")
+@app.get('/ready')
 def ready():
-    return {"ready": True}
+    return {'ready': True}

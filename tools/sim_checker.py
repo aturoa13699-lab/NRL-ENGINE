@@ -13,8 +13,8 @@ from tools.feature_brewery import brew_candidates
 
 def implied_probs(df: pd.DataFrame) -> pd.Series:
     if {"home_odds_close", "away_odds_close"} <= set(df.columns):
-        inv = (
-            1 / df[["home_odds_close", "away_odds_close"]].clip(lower=1.01).astype(float)
+        inv = 1 / df[["home_odds_close", "away_odds_close"]].clip(lower=1.01).astype(
+            float
         )
         s = inv.sum(axis=1)
         return (inv["home_odds_close"] / s).rename("home_imp_prob")
@@ -43,11 +43,11 @@ def _logloss_cv(X, y, splits) -> float:
 def forward_select(
     df: pd.DataFrame,
     y: pd.Series,
-    base: List[str],
-    cand: List[str],
+    base: list[str],
+    cand: list[str],
     min_delta: float = 5e-4,
     max_add: int = 20,
-) -> Tuple[List[str], Dict[str, float]]:
+) -> tuple[list[str], dict[str, float]]:
     splits = _splits()
     chosen = list(base)
     hist = {}
@@ -73,9 +73,9 @@ def forward_select(
 def backward_drop(
     df: pd.DataFrame,
     y: pd.Series,
-    feats: List[str],
+    feats: list[str],
     min_delta: float = 1e-4,
-) -> Tuple[List[str], Dict[str, float]]:
+) -> tuple[list[str], dict[str, float]]:
     splits = _splits()
     keep = list(feats)
     hist = {}
@@ -97,7 +97,7 @@ def backward_drop(
     return keep, hist
 
 
-def run_sim_checker(df: pd.DataFrame) -> Dict:
+def run_sim_checker(df: pd.DataFrame) -> dict:
     out = {"errors": []}
     if "home_win" not in df:
         out["errors"].append("missing home_win")

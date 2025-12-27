@@ -14,7 +14,7 @@ from nrl_engine.evaluation.odds_gate import enforce_odds_orientation
 
 __all__ = [
     "Config",
-    "DataLoader", 
+    "DataLoader",
     "FeatureEngineer",
     "EvaluationHarness",
     "enforce_odds_orientation",

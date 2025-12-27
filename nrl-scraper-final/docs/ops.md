@@ -35,11 +35,11 @@ python -m nrlscraper.historical 1998 2025
 
 ```sql
 WITH f AS (
-    SELECT *, (round ILIKE '%final%') AS is_finals 
-    FROM matches 
+    SELECT *, (round ILIKE '%final%') AS is_finals
+    FROM matches
     WHERE season = 2024
 )
-SELECT 
+SELECT
     COUNT(*) AS total,
     SUM(CASE WHEN is_finals THEN 1 ELSE 0 END) AS finals,
     SUM(CASE WHEN NOT is_finals THEN 1 ELSE 0 END) AS regular
@@ -55,7 +55,7 @@ SELECT
     SUM(CASE WHEN away_team IS NULL THEN 1 ELSE 0 END) AS away_nulls,
     SUM(CASE WHEN venue IS NULL THEN 1 ELSE 0 END) AS venue_nulls,
     SUM(CASE WHEN referee IS NULL THEN 1 ELSE 0 END) AS referee_nulls
-FROM matches 
+FROM matches
 WHERE season = 2024;
 ```
 
@@ -63,8 +63,8 @@ WHERE season = 2024;
 
 ```sql
 SELECT season, date, home_team, away_team, COUNT(*) c
-FROM matches 
-GROUP BY 1, 2, 3, 4 
+FROM matches
+GROUP BY 1, 2, 3, 4
 HAVING COUNT(*) > 1;
 ```
 
@@ -72,7 +72,7 @@ HAVING COUNT(*) > 1;
 
 ```sql
 SELECT MIN(date) AS first_match, MAX(date) AS last_match
-FROM matches 
+FROM matches
 WHERE season = 2024;
 ```
 
@@ -83,14 +83,14 @@ SELECT
     100.0 * AVG(CASE WHEN home_team = home_team_raw THEN 0 ELSE 1 END)::numeric AS home_norm_pct,
     100.0 * AVG(CASE WHEN away_team = away_team_raw THEN 0 ELSE 1 END)::numeric AS away_norm_pct,
     100.0 * AVG(CASE WHEN COALESCE(venue,'') = COALESCE(venue_raw,'') THEN 0 ELSE 1 END)::numeric AS venue_norm_pct
-FROM matches 
+FROM matches
 WHERE season = 2024;
 ```
 
 ### Season Summary Table
 
 ```sql
-SELECT 
+SELECT
     season,
     COUNT(*) AS matches,
     SUM(CASE WHEN round ILIKE '%final%' THEN 1 ELSE 0 END) AS finals,

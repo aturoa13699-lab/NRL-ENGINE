@@ -22,7 +22,7 @@ def _expected(ra: float, rb: float) -> float:
 
 def compute_elo(df: pd.DataFrame, cfg: EloConfig) -> pd.DataFrame:
     """Returns DF with added columns: elo_home, elo_away, elo_diff (pre-game)."""
-    t_rating: Dict[str, float] = {}
+    t_rating: dict[str, float] = {}
     out = []
     df = df.sort_values("date")
     for _, r in df.iterrows():

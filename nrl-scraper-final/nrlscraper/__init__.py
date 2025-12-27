@@ -9,9 +9,9 @@ SPEC-1 Implementation:
 
 __version__ = '1.0.0'
 
-from nrlscraper.scraper import NRLScraper
 from nrlscraper.models import MatchRow
 from nrlscraper.normalize import normalize_team, normalize_venue
+from nrlscraper.scraper import NRLScraper
 
 __all__ = [
     'NRLScraper',

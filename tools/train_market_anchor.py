@@ -19,7 +19,7 @@ from tools.multi_book import aggregate_multi_book
 from tools.sim_checker import implied_probs, market_logit, run_sim_checker
 
 
-def _metrics(y, p) -> Dict[str, float]:
+def _metrics(y, p) -> dict[str, float]:
     return {
         "logloss": float(log_loss(y, p)),
         "brier": float(brier_score_loss(y, p)),

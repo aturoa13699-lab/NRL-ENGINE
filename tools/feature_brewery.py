@@ -9,7 +9,7 @@ def _is_num(s, c):
     return c in s and s[c].dtype != object
 
 
-def brew_candidates(df: pd.DataFrame) -> List[str]:
+def brew_candidates(df: pd.DataFrame) -> list[str]:
     """
     Generate candidate feature columns from existing data.
     Returns list of newly created numeric feature names.

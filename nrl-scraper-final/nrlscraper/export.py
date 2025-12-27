@@ -3,6 +3,7 @@ Parquet export module (SPEC-1).
 
 Writes partitioned Parquet files for DuckDB/Pandas analysis.
 """
+
 import json
 from pathlib import Path
 
@@ -76,7 +77,7 @@ def load_parquet(path: str) -> pd.DataFrame:
     return pd.read_parquet(path)
 
 
-def export_to_parquet(rows: list[dict], prefix: str = "nrl_matches") -> str:
+def export_to_parquet(rows: list[dict], prefix: str = 'nrl_matches') -> str:
     """
     Convenience wrapper for Railway main.py.
 
@@ -90,7 +91,7 @@ def export_to_parquet(rows: list[dict], prefix: str = "nrl_matches") -> str:
         Path to output file
     """
     if not rows:
-        return ""
+        return ''
 
     # Detect season from first row
     first = rows[0]

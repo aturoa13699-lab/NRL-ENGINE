@@ -130,4 +130,3 @@ Weekly HTML reports are published by `ml-market-report` workflow into the `data`
 The `export-data` workflow exports match data to the `data` branch weekly:
 - `data/exports/matches.parquet` - All matches
 - `data/exports/matches.csv` - CSV format
-

@@ -4,21 +4,21 @@ NRL Scraper - Main scraper implementation (SPEC-1).
 Primary source: Rugby League Project (RLP)
 URL pattern: https://www.rugbyleagueproject.org/seasons/nrl-{year}/results.html
 """
+
 import hashlib
 import json
 import logging
 import re
 import time
-from datetime import datetime, date
-from typing import Optional
+from datetime import date, datetime
 
 import httpx
 from bs4 import BeautifulSoup
 from tenacity import (
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential_jitter,
-    retry_if_exception_type,
 )
 
 from nrlscraper.config import settings
@@ -30,11 +30,13 @@ logger = logging.getLogger('nrlscraper')
 
 class FetchError(Exception):
     """HTTP fetch error (retriable)."""
+
     pass
 
 
 class ParseError(Exception):
     """HTML parsing error."""
+
     pass
 
 
@@ -56,14 +58,16 @@ def make_match_id(
 
     Uses BLAKE2s hash of canonical fields for collision resistance.
     """
-    key = '|'.join([
-        str(season),
-        round_label.strip().lower(),
-        date_iso,
-        home.strip().lower(),
-        away.strip().lower(),
-        (venue or '').strip().lower(),
-    ])
+    key = '|'.join(
+        [
+            str(season),
+            round_label.strip().lower(),
+            date_iso,
+            home.strip().lower(),
+            away.strip().lower(),
+            (venue or '').strip().lower(),
+        ]
+    )
     return hashlib.blake2s(key.encode('utf-8'), digest_size=16).hexdigest()
 
 
@@ -137,8 +141,7 @@ class NRLScraper:
         """
         if year < settings.season_start or year > settings.season_end:
             raise ValueError(
-                f'Season {year} out of range '
-                f'({settings.season_start}-{settings.season_end})'
+                f'Season {year} out of range ' f'({settings.season_start}-{settings.season_end})'
             )
 
         logger.info(f'Scraping season {year}...')
@@ -223,7 +226,7 @@ class NRLScraper:
 
         return rows
 
-    def _parse_match_block(self, block: str, year: int, source_url: str) -> Optional[dict]:
+    def _parse_match_block(self, block: str, year: int, source_url: str) -> dict | None:
         """Parse a single match block."""
         try:
             # Pattern: "Team A NN (scorers...) defeated/drew Team B NN (scorers...) at Venue."
@@ -260,8 +263,13 @@ class NRLScraper:
                 round_label = f'Round {round_match.group(1)}'
             else:
                 # Check for finals
-                for finals_name in ['Qualifying Final', 'Elimination Final', 'Semi Final',
-                                   'Preliminary Final', 'Grand Final']:
+                for finals_name in [
+                    'Qualifying Final',
+                    'Elimination Final',
+                    'Semi Final',
+                    'Preliminary Final',
+                    'Grand Final',
+                ]:
                     if finals_name.lower() in block.lower():
                         round_label = finals_name
                         break
@@ -271,7 +279,13 @@ class NRLScraper:
                     if url_round:
                         round_label = f'Round {url_round.group(1)}'
                     else:
-                        for ft in ['qualif-final', 'elim-final', 'semi-final', 'prelim-final', 'grand-final']:
+                        for ft in [
+                            'qualif-final',
+                            'elim-final',
+                            'semi-final',
+                            'prelim-final',
+                            'grand-final',
+                        ]:
                             if ft in source_url:
                                 round_label = ft.replace('-', ' ').title()
                                 break

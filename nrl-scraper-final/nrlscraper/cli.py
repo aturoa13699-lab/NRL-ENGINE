@@ -5,13 +5,14 @@ Usage:
     python -m nrlscraper.cli season 2024
     python -m nrlscraper.cli historical 1998 2025
 """
+
 import argparse
 import logging
 import sys
 
-from nrlscraper.scraper import NRLScraper, log_event
-from nrlscraper.export import to_parquet, to_parquet_multi
 from nrlscraper.config import settings
+from nrlscraper.export import to_parquet, to_parquet_multi
+from nrlscraper.scraper import NRLScraper, log_event
 
 logger = logging.getLogger('nrlscraper')
 
@@ -47,6 +48,7 @@ def run_season(
     # Write to database
     if write_db and settings.db_url:
         from nrlscraper.db import upsert_matches
+
         count = upsert_matches(rows)
         logger.info(f'Upserted {count} matches to database')
 
@@ -82,6 +84,7 @@ def run_historical(
     # Write to database
     if write_db and settings.db_url:
         from nrlscraper.db import upsert_matches
+
         count = upsert_matches(all_rows)
         logger.info(f'Upserted {count} matches to database')
 

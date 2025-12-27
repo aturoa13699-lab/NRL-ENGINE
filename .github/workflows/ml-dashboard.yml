@@ -110,8 +110,10 @@ jobs:
           name: ml-dashboard
           path: reports/*
           retention-days: 14
+          if-no-files-found: ignore
 
       - name: Publish dashboard to data branch
+        if: always()
         run: |
           set -e
           git config user.name "github-actions[bot]"

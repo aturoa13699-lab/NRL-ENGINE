@@ -1,0 +1,184 @@
+name: data-pull-backfill-train
+on:
+  workflow_dispatch:
+    inputs:
+      dest_dir:
+        description: "Destination folder in repo"
+        required: false
+        default: "datasets/nrl"
+      commit_to_data:
+        description: "Commit refreshed datasets back to data branch"
+        required: false
+        default: "false"
+permissions:
+  contents: write
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      DEST_DIR: ${{ github.event.inputs.dest_dir || 'datasets/nrl' }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: Fetch data branch & mount worktree
+        run: |
+          git fetch origin data || true
+          rm -rf _data && mkdir -p _data
+          if git rev-parse --verify origin/data >/dev/null 2>&1; then
+            git worktree add --detach _data origin/data
+          fi
+          mkdir -p "$DEST_DIR" _data/data/exports _data/data/sources
+
+      - name: Copy available CSVs into repo datasets folder
+        run: |
+          shopt -s nullglob
+          cp -vn _data/data/exports/*.csv "$DEST_DIR"/ 2>/dev/null || true
+          echo "Copied to $DEST_DIR:" && ls -lh "$DEST_DIR" || true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+
+      - name: Install minimal deps
+        run: |
+          pip install -q pandas pyarrow fastparquet scikit-learn scipy jinja2
+
+      - name: Build/refresh train_super_enriched_v2.csv from matches (+odds if present)
+        run: |
+          python - <<'PY'
+          import pandas as pd
+          import numpy as np
+          from pathlib import Path
+          import os
+          dest = Path(os.environ.get("DEST_DIR", "datasets/nrl"))
+          data_exports = Path("_data/data/exports")
+          data_sources = Path("_data/data/sources")
+          dest.mkdir(parents=True, exist_ok=True)
+          # Prefer existing enriched; else build from matches.{parquet,csv}
+          out = dest / "train_super_enriched_v2.csv"
+          if out.exists():
+              print("Existing enriched dataset found; leaving as is:", out)
+          else:
+              mp, mc = data_exports / "matches.parquet", data_exports / "matches.csv"
+              assert mp.exists() or mc.exists(), "No matches export in data branch; run export-data workflow first."
+              df = pd.read_parquet(mp) if mp.exists() else pd.read_csv(mc)
+              df["date"] = pd.to_datetime(df["date"], errors="coerce")
+              df = df.sort_values("date")
+              # finals flag
+              df["is_finals"] = df["round"].astype(str).str.lower().str.contains(
+                  "final|qualif|elim|semi|prelim|grand"
+              ).astype(int)
+              # long form for rolling
+              cols = ["date", "season", "round", "venue", "referee",
+                      "home_team", "away_team", "home_score", "away_score", "is_finals"]
+              h = df[cols].rename(columns={
+                  "home_team": "team", "away_team": "opp",
+                  "home_score": "pf", "away_score": "pa"
+              })
+              h["is_home"] = 1
+              a = df[cols].rename(columns={
+                  "away_team": "team", "home_team": "opp",
+                  "away_score": "pf", "home_score": "pa"
+              })
+              a["is_home"] = 0
+              g = pd.concat([h, a], ignore_index=True).sort_values("date")
+              g["win"] = (g["pf"] > g["pa"]).astype(int)
+              g["margin"] = (g["pf"] - g["pa"]).astype(float)
+
+              def roll(x):
+                  x = x.sort_values("date")
+                  x["roll_win_5"] = x["win"].rolling(5, 1).mean().shift(1)
+                  x["roll_margin_5"] = x["margin"].rolling(5, 1).mean().shift(1)
+                  return x
+
+              g = g.groupby("team", group_keys=False).apply(roll)
+              H = g[g["is_home"] == 1][["team", "date", "roll_win_5", "roll_margin_5"]].rename(columns={
+                  "team": "home_team",
+                  "roll_win_5": "roll_win_5_home",
+                  "roll_margin_5": "roll_margin_5_home"
+              })
+              A = g[g["is_home"] == 0][["team", "date", "roll_win_5", "roll_margin_5"]].rename(columns={
+                  "team": "away_team",
+                  "roll_win_5": "roll_win_5_away",
+                  "roll_margin_5": "roll_margin_5_away"
+              })
+              X = df.merge(H, on=["home_team", "date"], how="left").merge(
+                  A, on=["away_team", "date"], how="left"
+              )
+              X["home_win"] = (X["home_score"] > X["away_score"]).astype(int)
+              # merge odds if present
+              odds = data_sources / "odds.csv"
+              if odds.exists():
+                  od = pd.read_csv(odds)
+                  if "date" in od:
+                      od["date"] = pd.to_datetime(od["date"], errors="coerce")
+                  key = [c for c in ["date", "home_team", "away_team"]
+                         if c in X.columns and c in od.columns]
+                  if key:
+                      X = X.merge(od[key + ["home_odds_close", "away_odds_close"]],
+                                  on=key, how="left")
+              else:
+                  X["home_odds_close"] = 2.0
+                  X["away_odds_close"] = 2.0
+              X.to_csv(out, index=False)
+              print("Wrote", out, "rows", len(X))
+          PY
+
+      - name: Run market-anchored training (HTML dashboard)
+        run: |
+          mkdir -p reports
+          python - <<'PY'
+          import json
+          import subprocess
+          import datetime
+          import os
+          from pathlib import Path
+          dest_dir = os.environ.get("DEST_DIR", "datasets/nrl")
+          data = Path(dest_dir) / "train_super_enriched_v2.csv"
+          odds = Path("_data/data/sources/odds.csv")
+          assert data.exists(), "train_super_enriched_v2.csv not found in datasets folder"
+          cmd = ["python", "-m", "tools.train_market_anchor",
+                 "--data", str(data), "--odds", str(odds), "--calibrate", "isotonic"]
+          subprocess.run(cmd, check=False)
+          m = {"note": "see trainer stdout", "time": datetime.datetime.utcnow().isoformat() + "Z"}
+          Path("reports/metrics.json").write_text(json.dumps(m, indent=2))
+          html = f"""<!doctype html>
+          <meta charset='utf-8'>
+          <title>NRL Market</title>
+          <h2>Market-Anchored Training Report</h2>
+          <pre>{json.dumps(m, indent=2)}</pre>
+          """
+          Path("reports/market_dashboard.html").write_text(html, encoding="utf-8")
+          PY
+
+      - name: Upload dashboard artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-dashboard
+          path: reports/*
+          retention-days: 14
+
+      - name: Optionally commit refreshed datasets back to data branch
+        if: ${{ github.event.inputs.commit_to_data == 'true' }}
+        run: |
+          git fetch origin data || true
+          if git rev-parse --verify origin/data >/dev/null 2>&1; then
+            git checkout -B data origin/data
+          else
+            git checkout -B data
+          fi
+          mkdir -p data/exports
+          cp -v "$DEST_DIR/train_super_enriched_v2.csv" data/exports/train_super_enriched_v2.csv
+          git add data/exports/train_super_enriched_v2.csv
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "data: refresh train_super_enriched_v2.csv" || echo "nothing to commit"
+          git push --force-with-lease origin data
+
+      - name: Job summary
+        run: |
+          echo "### Data pull + backfill + train" >> $GITHUB_STEP_SUMMARY
+          echo "- Datasets folder: \`$DEST_DIR\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Enriched CSV: \`$DEST_DIR/train_super_enriched_v2.csv\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Artifact: **market-dashboard** (HTML + metrics)" >> $GITHUB_STEP_SUMMARY

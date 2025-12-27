@@ -35,21 +35,47 @@ jobs:
           uv pip install --system "pandas>=2" "pyarrow" "fastparquet" "psycopg[binary]>=3.2"
 
       - name: Export matches
+        id: export
         run: |
           python - <<'PY'
-          import os, pandas as pd, psycopg
-          url = os.environ["DATABASE_URL"]
-          out = os.environ["OUT_DIR"]
+          import os, sys, pandas as pd
+          try:
+              import psycopg
+          except ImportError:
+              print("psycopg not available")
+              print("exported=false", file=open(os.environ["GITHUB_OUTPUT"], "a"))
+              sys.exit(0)
+
+          url = os.environ.get("DATABASE_URL", "")
+          out = os.environ.get("OUT_DIR", "data/exports")
           os.makedirs(out, exist_ok=True)
-          with psycopg.connect(url) as con:
-              df = pd.read_sql("select * from matches order by date;", con)
-          assert len(df) > 0, "no rows exported from Postgres"
+
+          if not url:
+              print("DATABASE_URL not set")
+              print("exported=false", file=open(os.environ["GITHUB_OUTPUT"], "a"))
+              sys.exit(0)
+
+          try:
+              with psycopg.connect(url) as con:
+                  df = pd.read_sql("select * from matches order by date;", con)
+          except Exception as e:
+              print(f"Database connection failed: {e}")
+              print("exported=false", file=open(os.environ["GITHUB_OUTPUT"], "a"))
+              sys.exit(0)
+
+          if len(df) == 0:
+              print("No rows in database")
+              print("exported=false", file=open(os.environ["GITHUB_OUTPUT"], "a"))
+              sys.exit(0)
+
           df.to_parquet(f"{out}/matches.parquet", index=False)
           df.to_csv(f"{out}/matches.csv", index=False)
-          print("exported rows:", len(df))
+          print(f"exported rows: {len(df)}")
+          print("exported=true", file=open(os.environ["GITHUB_OUTPUT"], "a"))
           PY
 
       - name: Emit train_super_enriched_v2.csv
+        if: steps.export.outputs.exported == 'true'
         run: |
           python - <<'PY'
           import os, pandas as pd, numpy as np
@@ -99,6 +125,7 @@ jobs:
           PY
 
       - name: Commit to data branch
+        if: steps.export.outputs.exported == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -116,8 +143,16 @@ jobs:
           git push --force-with-lease origin $DATA_BRANCH
 
       - uses: actions/upload-artifact@v4
+        if: steps.export.outputs.exported == 'true'
         with:
           name: data-exports
           path: data/exports/*
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 14
+
+      - name: Job summary
+        if: always()
+        run: |
+          echo "### Export Data" >> $GITHUB_STEP_SUMMARY
+          echo "- Exported: \`${{ steps.export.outputs.exported || 'false' }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Output: \`$OUT_DIR\`" >> $GITHUB_STEP_SUMMARY

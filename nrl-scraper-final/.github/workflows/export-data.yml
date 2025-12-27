@@ -8,9 +8,16 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   export:
+    # Run schedules only on default branch
+    if: ${{ github.event_name != 'schedule' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     env:
       DATABASE_URL: ${{ secrets.RAILWAY_DB_URL_RO }}
       DATA_BRANCH: data
@@ -20,7 +27,7 @@ jobs:
         with: { fetch-depth: 0 }
 
       - uses: actions/setup-python@v5
-        with: { python-version: "3.11" }
+        with: { python-version: "3.11", cache: "pip" }
 
       - name: Install deps
         run: |

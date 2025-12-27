@@ -42,6 +42,55 @@ jobs:
           print("exported rows:", len(df))
           PY
 
+      - name: Emit train_super_enriched_v2.csv
+        run: |
+          python - <<'PY'
+          import os, pandas as pd, numpy as np
+          from pathlib import Path
+          out = Path(os.environ.get('OUT_DIR', 'data/exports'))
+          out.mkdir(parents=True, exist_ok=True)
+          mp = out / 'matches.parquet'
+          df = pd.read_parquet(mp) if mp.exists() else pd.read_csv(out / 'matches.csv')
+          df['date'] = pd.to_datetime(df['date'], errors='coerce')
+          df['is_finals'] = df['round'].astype(str).str.lower().str.contains(
+              'final|qualif|elim|semi|prelim|grand'
+          ).astype(int)
+          # Build team-game log for rolling stats
+          h = df[['date','season','round','venue','referee','home_team','away_team',
+                  'home_score','away_score','is_finals']].rename(
+              columns={'home_team':'team','away_team':'opp','home_score':'pf','away_score':'pa'})
+          h['is_home'] = 1
+          a = df[['date','season','round','venue','referee','home_team','away_team',
+                  'home_score','away_score','is_finals']].rename(
+              columns={'away_team':'team','home_team':'opp','away_score':'pf','home_score':'pa'})
+          a['is_home'] = 0
+          g = pd.concat([h, a]).sort_values('date')
+          g['win'] = (g['pf'] > g['pa']).astype(int)
+          g['margin'] = (g['pf'] - g['pa']).astype(float)
+          # Rolling stats (shifted to avoid leakage)
+          g = g.groupby('team', group_keys=False).apply(
+              lambda d: d.assign(
+                  roll_win_5=d['win'].rolling(5, min_periods=1).mean().shift(1),
+                  roll_margin_5=d['margin'].rolling(5, min_periods=1).mean().shift(1)
+              )
+          )
+          H = g[g['is_home']==1][['team','date','roll_win_5','roll_margin_5']].rename(
+              columns={'team':'home_team','roll_win_5':'roll_win_5_home','roll_margin_5':'roll_margin_5_home'})
+          A = g[g['is_home']==0][['team','date','roll_win_5','roll_margin_5']].rename(
+              columns={'team':'away_team','roll_win_5':'roll_win_5_away','roll_margin_5':'roll_margin_5_away'})
+          X = df.merge(H, on=['home_team','date'], how='left').merge(A, on=['away_team','date'], how='left')
+          X['home_win'] = (X['home_score'] > X['away_score']).astype(int)
+          # Merge odds if available
+          odds = Path('data/sources/odds.csv')
+          if odds.exists():
+              od = pd.read_csv(odds)
+              if 'date' in od: od['date'] = pd.to_datetime(od['date'], errors='coerce')
+              key = [c for c in ['date','home_team','away_team'] if c in od.columns and c in X.columns]
+              if key: X = X.merge(od[key + ['home_odds_close','away_odds_close']], on=key, how='left')
+          X.to_csv(out / 'train_super_enriched_v2.csv', index=False)
+          print('wrote', out / 'train_super_enriched_v2.csv', 'rows', len(X))
+          PY
+
       - name: Commit to data branch
         run: |
           git config user.name "github-actions[bot]"

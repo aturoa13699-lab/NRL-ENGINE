@@ -10,6 +10,7 @@ from .common import finalize, to_decimal
 try:
     from nrlscraper.normalize import normalize_team
 except Exception:
+
     def normalize_team(name: str) -> str:
         return (name or "").strip()
 
@@ -17,11 +18,21 @@ except Exception:
 def parse(html_path: str) -> pd.DataFrame:
     root = LH.parse(str(Path(html_path))).getroot()
     rows = []
-    for card in root.xpath("//a[contains(@href,'/rugby-league/australia/nrl') and .//div[contains(@class,'event-name')]]"):
-        home = "".join(card.xpath(".//div[contains(@class,'participant--home')]//text()")).strip()
-        away = "".join(card.xpath(".//div[contains(@class,'participant--away')]//text()")).strip()
-        home_price = "".join(card.xpath(".//span[contains(@class,'odd')][1]//text()")).strip()
-        away_price = "".join(card.xpath(".//span[contains(@class,'odd')][last()]//text()")).strip()
+    for card in root.xpath(
+        "//a[contains(@href,'/rugby-league/australia/nrl') and .//div[contains(@class,'event-name')]]"
+    ):
+        home = "".join(
+            card.xpath(".//div[contains(@class,'participant--home')]//text()")
+        ).strip()
+        away = "".join(
+            card.xpath(".//div[contains(@class,'participant--away')]//text()")
+        ).strip()
+        home_price = "".join(
+            card.xpath(".//span[contains(@class,'odd')][1]//text()")
+        ).strip()
+        away_price = "".join(
+            card.xpath(".//span[contains(@class,'odd')][last()]//text()")
+        ).strip()
         iso_dt = "".join(card.xpath(".//time/@datetime"))
         rows.append(
             {

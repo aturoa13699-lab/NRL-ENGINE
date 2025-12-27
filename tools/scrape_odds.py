@@ -38,7 +38,10 @@ async def scrape() -> None:
                 await page.goto(url, wait_until="domcontentloaded", timeout=60000)
                 await page.wait_for_timeout(2000)
                 title = await page.title()
-                if any(flag in title for flag in ["Just a moment", "Access denied", "Cloudflare"]):
+                if any(
+                    flag in title
+                    for flag in ["Just a moment", "Access denied", "Cloudflare"]
+                ):
                     print(f"BLOCKED: {name}")
                 else:
                     html = await page.content()

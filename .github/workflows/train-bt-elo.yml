@@ -1,0 +1,103 @@
+name: train-bt-elo
+on:
+  schedule:
+    - cron: '25 22 * * 2'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install deps
+        run: pip install -q pandas numpy pyarrow fastparquet scikit-learn
+      - name: Fetch data branch (dataset)
+        run: |
+          git fetch origin data || true
+          git worktree add --detach _data origin/data || true
+      - name: Resolve dataset
+        id: ds
+        shell: bash
+        run: |
+          set -euo pipefail
+          A="_data/data/exports/train_super_enriched_v2.csv"
+          B="_data/data/exports/matches.csv"
+          if [[ -f "$A" ]]; then echo "data=$A" >> "$GITHUB_OUTPUT"
+          elif [[ -f "$B" ]]; then echo "data=$B" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::No dataset found in data branch (exports/)."; exit 1
+          fi
+      - name: Train BT+Elo+Kelly
+        run: |
+          mkdir -p reports/market/bt_elo
+          python tools/train_bt_elo_kelly.py \
+            --data "${{ steps.ds.outputs.data }}" \
+            --blend-weights 0.35,0.35,0.30 \
+            --kelly 0.5 --cap 0.05 --min-edge 0.01 \
+            --write-preds reports/market/bt_elo/preds.csv \
+            --metrics-json reports/market/bt_elo/metrics.json
+      - name: Build HTML report
+        run: |
+          python tools/build_bt_elo_report.py \
+            reports/market/bt_elo/metrics.json \
+            reports/market/bt_elo/preds.csv \
+            reports/market/bt_elo/index.html
+      - name: "Guard: artifacts"
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s reports/market/bt_elo/metrics.json
+          test -s reports/market/bt_elo/index.html
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bt-elo-report
+          path: reports/market/bt_elo/*
+          if-no-files-found: error
+          retention-days: 14
+      - name: Publish to data branch (worktree-safe)
+        env:
+          BR: data
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+          git fetch origin --prune || true
+          TS=$(date -u +%Y%m%dT%H%M%SZ)
+          rm -rf _publish_data
+          if git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
+            git worktree add --force -B "$BR" _publish_data origin/"$BR"
+          else
+            git worktree add --force -B "$BR" _publish_data
+            ( cd _publish_data && git checkout --orphan "$BR" && rm -rf ./* && git commit --allow-empty -m "init data" )
+          fi
+          install -D -m 0644 reports/market/bt_elo/index.html "_publish_data/reports/market/bt_elo/${TS}/index.html"
+          install -D -m 0644 reports/market/bt_elo/metrics.json "_publish_data/reports/market/bt_elo/${TS}/metrics.json"
+          install -D -m 0644 reports/market/bt_elo/preds.csv "_publish_data/reports/market/bt_elo/${TS}/preds.csv"
+          install -D -m 0644 reports/market/bt_elo/index.html "_publish_data/reports/market/bt_elo/latest.html"
+          ( cd _publish_data && git add -A && git commit -m "bt-elo: ${TS}" || echo "nothing to commit" && git push origin HEAD:"$BR" )
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### BT+Elo+Kelly training"
+            echo "- dashboard: https://github.com/${{ github.repository }}/blob/data/reports/market/bt_elo/latest.html"
+          } >> "$GITHUB_STEP_SUMMARY"

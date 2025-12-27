@@ -1,0 +1,25 @@
+name: pr-autoupdate
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Rebase all open PRs labeled "autoupdate"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          prs=$(gh pr list --state open --label autoupdate --json number --jq '.[].number')
+          for pr in $prs; do
+            echo "Updating PR #$pr"
+            gh pr update-branch "$pr" --rebase || true
+          done

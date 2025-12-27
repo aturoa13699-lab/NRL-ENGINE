@@ -88,20 +88,60 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
-      - name: Commit report to data branch
+      - name: Publish report to data branch
         if: always()
+        env:
+          BR: data
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -e
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin data || true
-          if git rev-parse --verify origin/data >/dev/null 2>&1; then
-            git checkout -B data origin/data
+
+          # Always start from latest remote state if it exists
+          git fetch origin --prune
+          if git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
+            git checkout -B "$BR" "origin/$BR"
           else
-            git checkout -B data
+            git checkout -B "$BR"
           fi
+
           mkdir -p reports/market
-          cp reports/*.html reports/market/ 2>/dev/null || true
-          cp reports/*.json reports/market/ 2>/dev/null || true
+          TS=$(date -u +%Y%m%dT%H%M%SZ)
+          mkdir -p "reports/market/${TS}"
+
+          # Copy reports
+          cp reports/*.html "reports/market/${TS}/" 2>/dev/null || true
+          cp reports/*.json "reports/market/${TS}/" 2>/dev/null || true
+
+          # Update latest pointers
+          rm -f reports/market/latest.html reports/market/metrics.json 2>/dev/null || true
+          [ -f "reports/market_anchor_metrics.json" ] && cp "reports/market_anchor_metrics.json" reports/market/metrics.json
+          [ -f "reports/60_market_anchored_out.html" ] && cp "reports/60_market_anchored_out.html" reports/market/latest.html
+
           git add reports/market/* || true
-          git commit -m "reports: weekly market-anchored metrics" || echo "nothing to commit"
-          git push --force-with-lease origin data
+          git commit -m "reports: weekly market-anchored metrics ${TS}" || echo "nothing to commit"
+
+          # Push with retries to handle race conditions
+          n=0
+          until [ $n -ge 3 ]; do
+            git fetch origin "$BR" 2>/dev/null || true
+            if git push --force-with-lease origin HEAD:refs/heads/$BR 2>/dev/null; then
+              echo "✅ Pushed to ${BR}"
+              break
+            fi
+            n=$((n+1))
+            delay=$((n*3))
+            echo "Push race; retrying in ${delay}s..."
+            sleep $delay
+            # Rebase on latest remote
+            git fetch origin "$BR" 2>/dev/null || true
+            git rebase "origin/$BR" 2>/dev/null || git rebase --abort 2>/dev/null || true
+          done
+          [ $n -lt 3 ] || echo "::warning::Push to data branch failed after retries"
+
+      - name: Job Summary
+        run: |
+          echo "### ML Market Report" >> $GITHUB_STEP_SUMMARY
+          echo "- Reports artifact: **ml-market-report**" >> $GITHUB_STEP_SUMMARY
+          echo "- Data branch path: \`reports/market/\`" >> $GITHUB_STEP_SUMMARY

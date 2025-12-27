@@ -2,11 +2,20 @@ name: ml-market-report
 on:
   schedule: [{ cron: "45 22 * * 2" }]  # Tue 09:45 AEST
   workflow_dispatch:
+
 permissions:
   contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   report:
+    # Run schedules only on default branch
+    if: ${{ github.event_name != 'schedule' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -27,7 +36,7 @@ jobs:
           fi
 
       - uses: actions/setup-python@v5
-        with: { python-version: "3.11" }
+        with: { python-version: "3.11", cache: "pip" }
 
       - name: Install deps
         run: |

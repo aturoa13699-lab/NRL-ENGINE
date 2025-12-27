@@ -2,8 +2,6 @@
 Baseline models for NRL prediction.
 """
 
-from typing import Optional
-
 import numpy as np
 from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression

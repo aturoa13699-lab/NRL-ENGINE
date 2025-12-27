@@ -8,7 +8,7 @@ and falls back to sample data if nothing found.
 import os
 import glob
 from datetime import datetime
-from typing import Tuple, Dict, Any, Optional, List
+from typing import Any
 
 import pandas as pd
 

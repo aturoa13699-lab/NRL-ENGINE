@@ -6,8 +6,6 @@ Supports:
 - Rolling folds: Train on fixed window of prior seasons
 """
 
-from typing import List, Tuple, Optional
-
 import pandas as pd
 
 from nrl_engine.config import Config, DEFAULT_CONFIG

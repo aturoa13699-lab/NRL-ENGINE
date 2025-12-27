@@ -6,7 +6,7 @@ Includes:
 - Market metrics: CLV (Closing Line Value), market baseline
 """
 
-from typing import Dict, Any, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -19,9 +19,7 @@ def _clip_probs(p: np.ndarray, eps: float = 1e-6) -> np.ndarray:
     return np.clip(np.asarray(p, dtype=float), eps, 1 - eps)
 
 
-def devig_odds(
-    home_odds: float, away_odds: float
-) -> tuple[float | None, float | None]:
+def devig_odds(home_odds: float, away_odds: float) -> tuple[float | None, float | None]:
     """
     Convert decimal odds to fair probabilities (remove vig).
 

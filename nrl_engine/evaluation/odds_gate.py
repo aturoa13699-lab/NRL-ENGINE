@@ -5,7 +5,7 @@ Detects and corrects swapped home/away odds columns.
 Fails loudly if orientation is ambiguous (likely join corruption).
 """
 
-from typing import Tuple, Dict, Any, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd

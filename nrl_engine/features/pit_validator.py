@@ -6,7 +6,7 @@ All features must use only data available before each match.
 """
 
 from dataclasses import dataclass
-from typing import List, Dict, Any
+from typing import Any
 
 import pandas as pd
 
